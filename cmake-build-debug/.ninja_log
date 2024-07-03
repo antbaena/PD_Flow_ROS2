@@ -1,8 +1,0 @@
-# ninja log v6
-2279	2291	1720030999707216721	libpdflow_cudalib.a	b105d0cbaf6a0d50
-1	2279	1720030999699216806	/home/ant/Desktop/PD_Flow_ROS2/cmake-build-debug/CMakeFiles/pdflow_cudalib.dir/pdflow_cudalib_generated_pdflow_cudalib.cu.o	521ed1f783131cd8
-1	2279	1720030999699216806	CMakeFiles/pdflow_cudalib.dir/pdflow_cudalib_generated_pdflow_cudalib.cu.o	521ed1f783131cd8
-3	66	1720031014787054942	build.ninja	b557f18a51572b7f
-5	902	1720031014803054770	CMakeFiles/Scene-Flow-Impair.dir/main_scene_flow_impair.cpp.o	be1e5a2737510cc1
-5	960	1720031014803054770	CMakeFiles/Scene-Flow-Impair.dir/scene_flow_impair.cpp.o	bf61aaaef9ce04bc
-960	1131	1720031015759044539	Scene-Flow-Impair	d8140dbe11e4e28
