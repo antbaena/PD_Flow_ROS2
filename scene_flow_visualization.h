@@ -23,7 +23,6 @@
 
 #include <Eigen/Core>
 #include <vector>
-#include <OpenNI2/OpenNI.h>
 #include <stdio.h>
 #include <string.h>
 #include "pdflow_cudalib.h"
@@ -85,7 +84,7 @@ public:
     // Visual (using OpenCV)
     cv::Mat image;
 
-    // OpenNI2 - Camera
+    // OpenNI2 - Camera esto se va a ir a tomar por culo, aqui ros2 astra
     openni::Status         rc;
     openni::Device         device;
     openni::VideoMode      options;
@@ -105,16 +104,6 @@ public:
     void initializeScene();
     void updateScene();
     void initializePDFlow();
-    // Método para manejar la entrada del teclado
-    char getKeyPressed()
-    {
-        int key = cv::waitKey(10); // Espera 10ms para la entrada del teclado
-        if (key != -1)
-        {
-            return static_cast<char>(key); // Devuelve la tecla presionada
-        }
-        return 0; // Si no hay tecla presionada, devuelve 0
-    }
 
     PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };
