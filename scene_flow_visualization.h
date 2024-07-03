@@ -23,7 +23,7 @@
 
 #include <Eigen/Core>
 #include <vector>
-#include <OpenNI.h>
+#include <OpenNI2/OpenNI.h>
 #include <stdio.h>
 #include <string.h>
 #include "pdflow_cudalib.h"
@@ -33,11 +33,10 @@
 #include <chrono>
 #include <thread>
 
-#ifdef _WIN32
-inline float log2(const float x) { return log(x) * M_LOG2E; }
-#elif __linux
+
+
 inline int stoi(char *c) { return int(std::strtol(c, NULL, 10)); }
-#endif
+
 
 using namespace std;
 using namespace std::chrono;
@@ -46,6 +45,7 @@ using Eigen::MatrixXf;
 class PD_flow
 {
 public:
+    // Variables
     float fps;                    // In Hz
     unsigned int cam_mode;        // (1 - 640 x 480, 2 - 320 x 240)
     unsigned int ctf_levels;      // Number of levels used in the coarse-to-fine scheme (always dividing by two)
@@ -86,10 +86,10 @@ public:
     cv::Mat image;
 
     // OpenNI2 - Camera
-    openni::Status rc;
-    openni::Device device;
-    openni::VideoMode options;
-    openni::VideoStream rgb, dimage;
+    openni::Status         rc;
+    openni::Device         device;
+    openni::VideoMode      options;
+    openni::VideoStream    rgb, dimage;
 
     // Cuda
     CSF_cuda csf_host, *csf_device;
