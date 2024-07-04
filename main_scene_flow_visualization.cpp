@@ -35,35 +35,6 @@ int main(int num_arg, char *argv[])
 	//==============================================================================
 	unsigned int cam_mode = 1, fps = 30, rows = 240;	//Default values
 
-	if (num_arg <= 1); //No arguments
-	else if ( string(argv[1]) == "--help")
-	{
-		printf("\n\t       Arguments of the function 'main' \n");
-		printf("==============================================================\n\n");
-		printf(" --help: Shows this menu... \n\n");
-		printf(" --cam_mode cm: Open Camera with the following resolution: \n");
-		printf("\t\t VGA (cm = 1), QVGA (cm = 2) \n\n");
-		printf(" --fps f: The scene flow frame rate (Hz). \n\n");
-		printf(" --rows r: Number of rows at the finest level of the pyramid. \n");
-		printf("\t   Options: r=15, r=30, r=60, r=120, r=240, r=480 (if VGA)\n");
-        getwchar();
-		return 1;
-	}
-	else
-	{
-		for (int i=1; i<num_arg; i++)
-		{
-			if ( string(argv[i]) == "--cam_mode")
-                cam_mode = stoi(argv[i+1]);
-
-			if ( string(argv[i]) == "--fps")
-                fps = stoi(argv[i+1]);
-
-			if ( string(argv[i]) == "--rows")
-                rows = stoi(argv[i+1]);
-		}
-	}
-
 	//Initialize the scene flow object and visualization
 	PD_flow sceneflow(cam_mode, fps, rows);
 	sceneflow.initializePDFlow();

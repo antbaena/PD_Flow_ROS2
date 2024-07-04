@@ -9,37 +9,33 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io visualization)
-find_package(pcl_conversions REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(pd_flow_msgs REQUIRED)  
 
 include_directories(
-        include
+        ${OpenCV_INCLUDE_DIRS},
         ${PCL_INCLUDE_DIRS}
 )
 
-add_executable(talker src/publisher_member_function.cpp)
-ament_target_dependencies(talker rclcpp std_msgs)
-
-add_executable(listener src/subscriber_member_function.cpp)
-ament_target_dependencies(listener rclcpp std_msgs)
-
-add_executable(point_cloud_viewer src/point_cloud.cpp)
-ament_target_dependencies(point_cloud_viewer
-                            "rclcpp"
-                            "sensor_msgs"
-                            "PCL"
-                            "pcl_conversions")
-
-target_link_libraries(point_cloud_viewer
-        ${Boost_SYSTEM_LIBRARY}
+add_executable(Image_combiner src/Image_combiner.cpp)
+ament_target_dependencies(Image_combiner
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  OpenCV
+  pd_flow_msgs
 )
 
+add_executable(PD_flow src/PD_flow.cpp)
+ament_target_dependencies(PD_flow
+                            rclcpp
+                            sensor_msgs
+                            pd_flow_msgs)
 
 install(TARGETS
-        talker
-        listener
-        point_cloud_viewer
+        PD_flow
+        Image_combiner
         DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

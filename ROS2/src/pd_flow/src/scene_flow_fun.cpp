@@ -21,9 +21,9 @@
 **																			**
 *****************************************************************************/
 
-#include "scene_flow_visualization.h"
+#include "scene_flow_fun.h";
 
-PD_flow_mrpt::PD_flow_mrpt(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config)
+PD_flow_fun::PD_flow_fun(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config)
 {     
     rows = rows_config;      //Maximum size of the coarse-to-fine scheme - Default 240 (QVGA)
     cols = rows*320/240;
@@ -58,8 +58,8 @@ PD_flow_mrpt::PD_flow_mrpt(unsigned int cam_mode_config, unsigned int fps_config
     //Resize vectors according to levels
     dx.resize(ctf_levels); dy.resize(ctf_levels); dz.resize(ctf_levels);
 
-    const unsigned int width = colour_wf.getColCount();
-    const unsigned int height = colour_wf.getRowCount();
+    const unsigned int width = colour_wf.cols();
+    const unsigned int height = colour_wf.rows();
     unsigned int s, cols_i, rows_i;
 
     for (unsigned int i = 0; i<ctf_levels; i++)
@@ -109,7 +109,7 @@ PD_flow_mrpt::PD_flow_mrpt(unsigned int cam_mode_config, unsigned int fps_config
     mu = 75.f;
 }
 
-void PD_flow_mrpt::createImagePyramidGPU()
+void PD_flow_fun::createImagePyramidGPU(MatrixXf colour_wf, MatrixXf depth_wf)
 {
     //Copy new frames to the scene flow object
     csf_host.copyNewFrames(colour_wf.data(), depth_wf.data());
@@ -124,22 +124,18 @@ void PD_flow_mrpt::createImagePyramidGPU()
     BridgeBack(&csf_host, csf_device);
 }
 
-void PD_flow_mrpt::solveSceneFlowGPU()
+void PD_flow_fun::solveSceneFlowGPU()
 {
     //Define variables
-    CTicTac	clock;
-
     unsigned int s;
     unsigned int cols_i, rows_i;
     unsigned int level_image;
     unsigned int num_iter;
 
-    clock.Tic();
-
     //For every level (coarse-to-fine)
     for (unsigned int i=0; i<ctf_levels; i++)
     {
-        const unsigned int width = colour_wf.getColCount();
+        const unsigned int width = colour_wf.cols();
         s = pow(2.f,int(ctf_levels-(i+1)));
         cols_i = cols/s;
         rows_i = rows/s;
@@ -207,131 +203,131 @@ void PD_flow_mrpt::solveSceneFlowGPU()
     }
 }
 
-bool PD_flow_mrpt::OpenCamera()
-{
-	rc = openni::STATUS_OK;
+// bool PD_flow_fun::OpenCamera()
+// {
+// 	rc = openni::STATUS_OK;
 
-    const char* deviceURI = openni::ANY_DEVICE;
+//     const char* deviceURI = openni::ANY_DEVICE;
 
-    rc = openni::OpenNI::initialize();
+//     rc = openni::OpenNI::initialize();
 
-    printf("Opening camera...\n %s\n", openni::OpenNI::getExtendedError());
-    rc = device.open(deviceURI);
-    if (rc != openni::STATUS_OK)
-    {
-        printf("Device open failed:\n%s\n", openni::OpenNI::getExtendedError());
-        openni::OpenNI::shutdown();
-        return 1;
-    }
+//     printf("Opening camera...\n %s\n", openni::OpenNI::getExtendedError());
+//     rc = device.open(deviceURI);
+//     if (rc != openni::STATUS_OK)
+//     {
+//         printf("Device open failed:\n%s\n", openni::OpenNI::getExtendedError());
+//         openni::OpenNI::shutdown();
+//         return 1;
+//     }
 
-    //								Create RGB and Depth channels
-    //========================================================================================
-    rc = dimage.create(device, openni::SENSOR_DEPTH);
-    rc = rgb.create(device, openni::SENSOR_COLOR);
+//     //								Create RGB and Depth channels
+//     //========================================================================================
+//     rc = dimage.create(device, openni::SENSOR_DEPTH);
+//     rc = rgb.create(device, openni::SENSOR_COLOR);
 
 
-	//                            Configure some properties (resolution)
-	//========================================================================================
-    rc = device.setImageRegistrationMode(openni::IMAGE_REGISTRATION_DEPTH_TO_COLOR);
+// 	//                            Configure some properties (resolution)
+// 	//========================================================================================
+//     rc = device.setImageRegistrationMode(openni::IMAGE_REGISTRATION_DEPTH_TO_COLOR);
 
-    options = rgb.getVideoMode();
-    if (cam_mode == 1)
-        options.setResolution(640,480);
-    else
-        options.setResolution(320,240);
+//     options = rgb.getVideoMode();
+//     if (cam_mode == 1)
+//         options.setResolution(640,480);
+//     else
+//         options.setResolution(320,240);
 
-    rc = rgb.setVideoMode(options);
-    rc = rgb.setMirroringEnabled(false);
+//     rc = rgb.setVideoMode(options);
+//     rc = rgb.setMirroringEnabled(false);
 
-    options = dimage.getVideoMode();
-    if (cam_mode == 1)
-        options.setResolution(640,480);
-    else
-        options.setResolution(320,240);
+//     options = dimage.getVideoMode();
+//     if (cam_mode == 1)
+//         options.setResolution(640,480);
+//     else
+//         options.setResolution(320,240);
 
-    rc = dimage.setVideoMode(options);
-    rc = dimage.setMirroringEnabled(false);
+//     rc = dimage.setVideoMode(options);
+//     rc = dimage.setMirroringEnabled(false);
 
-    //Turn off autoExposure
-    rgb.getCameraSettings()->setAutoExposureEnabled(false);
-    printf("Auto Exposure: %s \n", rgb.getCameraSettings()->getAutoExposureEnabled() ? "ON" : "OFF");
+//     //Turn off autoExposure
+//     rgb.getCameraSettings()->setAutoExposureEnabled(false);
+//     printf("Auto Exposure: %s \n", rgb.getCameraSettings()->getAutoExposureEnabled() ? "ON" : "OFF");
 
-    //Check final resolution
-    options = rgb.getVideoMode();
-    printf("Resolution (%d, %d) \n", options.getResolutionX(), options.getResolutionY());
+//     //Check final resolution
+//     options = rgb.getVideoMode();
+//     printf("Resolution (%d, %d) \n", options.getResolutionX(), options.getResolutionY());
 
-	//								Start channels
-	//===================================================================================
-    rc = dimage.start();
-    if (rc != openni::STATUS_OK)
-    {
-        printf("Couldn't start depth stream:\n%s\n", openni::OpenNI::getExtendedError());
-        dimage.destroy();
-    }
+// 	//								Start channels
+// 	//===================================================================================
+//     rc = dimage.start();
+//     if (rc != openni::STATUS_OK)
+//     {
+//         printf("Couldn't start depth stream:\n%s\n", openni::OpenNI::getExtendedError());
+//         dimage.destroy();
+//     }
 
-    rc = rgb.start();
-    if (rc != openni::STATUS_OK)
-    {
-        printf("Couldn't start rgb stream:\n%s\n", openni::OpenNI::getExtendedError());
-        rgb.destroy();
-    }
+//     rc = rgb.start();
+//     if (rc != openni::STATUS_OK)
+//     {
+//         printf("Couldn't start rgb stream:\n%s\n", openni::OpenNI::getExtendedError());
+//         rgb.destroy();
+//     }
 
-    if (!dimage.isValid() || !rgb.isValid())
-    {
-        printf("Camera: No valid streams. Exiting\n");
-        openni::OpenNI::shutdown();
-        return 1;
-    }
+//     if (!dimage.isValid() || !rgb.isValid())
+//     {
+//         printf("Camera: No valid streams. Exiting\n");
+//         openni::OpenNI::shutdown();
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
-void PD_flow_mrpt::CloseCamera()
-{
-    rgb.destroy();
-    openni::OpenNI::shutdown();
-}
+// void PD_flow_fun::CloseCamera()
+// {
+//     rgb.destroy();
+//     openni::OpenNI::shutdown();
+// }
 
-void PD_flow_mrpt::CaptureFrame()
-{
-    openni::VideoFrameRef framergb, framed;
-    rgb.readFrame(&framergb);
-    dimage.readFrame(&framed);
+// void PD_flow_fun::CaptureFrame()
+// {
+//     openni::VideoFrameRef framergb, framed;
+//     rgb.readFrame(&framergb);
+//     dimage.readFrame(&framed);
 
-    const int height = framergb.getHeight();
-    const int width = framergb.getWidth();
+//     const int height = framergb.getHeight();
+//     const int width = framergb.getWidth();
 
-    if ((framed.getWidth() != framergb.getWidth()) || (framed.getHeight() != framergb.getHeight()))
-        cout << endl << "The RGB and the depth frames don't have the same size.";
+//     if ((framed.getWidth() != framergb.getWidth()) || (framed.getHeight() != framergb.getHeight()))
+//         cout << endl << "The RGB and the depth frames don't have the same size.";
 
-    else
-    {
-        //Read new frame
-        const openni::DepthPixel* pDepthRow = (const openni::DepthPixel*)framed.getData();
-        const openni::RGB888Pixel* pRgbRow = (const openni::RGB888Pixel*)framergb.getData();
-        int rowSize = framergb.getStrideInBytes() / sizeof(openni::RGB888Pixel);
+//     else
+//     {
+//         //Read new frame
+//         const openni::DepthPixel* pDepthRow = (const openni::DepthPixel*)framed.getData();
+//         const openni::RGB888Pixel* pRgbRow = (const openni::RGB888Pixel*)framergb.getData();
+//         int rowSize = framergb.getStrideInBytes() / sizeof(openni::RGB888Pixel);
 
-        for (int yc = height-1; yc >= 0; --yc)
-        {
-            const openni::RGB888Pixel* pRgb = pRgbRow;
-            const openni::DepthPixel* pDepth = pDepthRow;
-            for (int xc = width-1; xc >= 0; --xc, ++pRgb, ++pDepth)
-            {
-                colour_wf(yc,xc) = 0.299*pRgb->r + 0.587*pRgb->g + 0.114*pRgb->b;
-                depth_wf(yc,xc) = 0.001f*(*pDepth);
-            }
-            pRgbRow += rowSize;
-            pDepthRow += rowSize;
-        }
-    }
-}
+//         for (int yc = height-1; yc >= 0; --yc)
+//         {
+//             const openni::RGB888Pixel* pRgb = pRgbRow;
+//             const openni::DepthPixel* pDepth = pDepthRow;
+//             for (int xc = width-1; xc >= 0; --xc, ++pRgb, ++pDepth)
+//             {
+//                 colour_wf(yc,xc) = 0.299*pRgb->r + 0.587*pRgb->g + 0.114*pRgb->b;
+//                 depth_wf(yc,xc) = 0.001f*(*pDepth);
+//             }
+//             pRgbRow += rowSize;
+//             pDepthRow += rowSize;
+//         }
+//     }
+// }
 
-void PD_flow_mrpt::freeGPUMemory()
+void PD_flow_fun::freeGPUMemory()
 {
     csf_host.freeDeviceMemory();
 }
 
-void PD_flow_mrpt::initializeCUDA()
+void PD_flow_fun::initializeCUDA()
 {
     //Read parameters
     csf_host.readParameters(rows, cols, lambda_i, lambda_d, mu, g_mask, ctf_levels, cam_mode, fovh, fovv);
@@ -340,88 +336,12 @@ void PD_flow_mrpt::initializeCUDA()
     csf_host.allocateDevMemory();
 }
 
-void PD_flow_mrpt::initializeScene()
+
+
+void PD_flow_fun::initializePDFlow()
 {
-    global_settings::OCTREE_RENDER_MAX_POINTS_PER_NODE = 10000000;
-    window.resize(1000,900);
-    window.setPos(900,0);
-    window.setCameraZoom(4);
-    window.setCameraAzimuthDeg(190);
-    window.setCameraElevationDeg(30);
-	window.setCameraPointingToPoint(1,0,0);
-	
-	scene = window.get3DSceneAndLock();
 
-    //Point cloud (final)
-    opengl::CPointCloudPtr fpoints_gl = opengl::CPointCloud::Create();
-    fpoints_gl->setColor(0, 1, 1);
-    fpoints_gl->enablePointSmooth();
-    fpoints_gl->setPointSize(3.0);
-    scene->insert( fpoints_gl );
-
-    //Scene Flow (includes initial point cloud)
-    opengl::CVectorField3DPtr sf = opengl::CVectorField3D::Create();
-    sf->setPointSize(3.0f);
-    sf->setLineWidth(2.0f);
-    sf->setPointColor(1,0,0);
-    sf->setVectorFieldColor(0,0,1);
-    sf->enableAntiAliasing();
-    scene->insert( sf );
-
-    //Reference frame
-    opengl::CSetOfObjectsPtr reference = opengl::stock_objects::CornerXYZ();
-    reference->setPose(CPose3D(0,0,0,0,0,0));
-	reference->setScale(0.15f);
-    scene->insert( reference );
-
-	//Legend
-	utils::CImage img_legend;
-	img_legend.loadFromXPM(legend_pdflow_xpm);
-	opengl::COpenGLViewportPtr legend = scene->createViewport("legend");
-	legend->setViewportPosition(20, 20, 201, 252);
-	legend->setImageView(img_legend);
-
-    window.unlockAccess3DScene();
-    window.repaint();
-}
-
-void PD_flow_mrpt::updateScene()
-{	
-	scene = window.get3DSceneAndLock();
-
-	const unsigned int repr_level = round(log2(colour_wf.getColCount()/cols));
-
-	//Point cloud (final)
-    opengl::CPointCloudPtr fpoints_gl = scene->getByClass<opengl::CPointCloud>(0);
-    fpoints_gl->clear();
-    for (unsigned int v=0; v<rows; v++)
-        for (unsigned int u=0; u<cols; u++)
-            if (depth[repr_level](v,u) > 0.1f)
-                fpoints_gl->insertPoint(depth[repr_level](v,u), xx[repr_level](v,u), yy[repr_level](v,u));
-
-
-    //Scene flow
-	opengl::CVectorField3DPtr sf = scene->getByClass<opengl::CVectorField3D>(0);
-	sf->setPointCoordinates(depth_old[repr_level], xx_old[repr_level], yy_old[repr_level]);
-    sf->setVectorField(dx[0], dy[0], dz[0]);
-
-    window.unlockAccess3DScene();
-    window.repaint();
-}
-
-void PD_flow_mrpt::initializePDFlow()
-{
-	//Initialize Visualization
-	initializeScene();
-
-    //Initialize CUDA
-    mrpt::system::sleep(500);
     initializeCUDA();
-
-	//Start video streaming
-    OpenCamera();
-
-	//Fill empty matrices
     CaptureFrame();
     createImagePyramidGPU();
     CaptureFrame();
