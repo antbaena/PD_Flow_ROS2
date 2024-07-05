@@ -46,6 +46,11 @@ private:
     combined_msg.depth_image = *depth_image_;
 
     combined_pub_->publish(combined_msg);
+    RCLCPP_INFO(this->get_logger(), "Publishing combined Image");
+
+    // Reiniciar las variables a nullptr después de publicar para que no se publique varias veces el mismo par
+    rgb_image_ = nullptr;
+    depth_image_ = nullptr;
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgb_sub_;
