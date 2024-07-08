@@ -359,5 +359,5 @@ void PD_flow_opencv::showAndSaveResults( )
     cv::moveWindow("SceneFlow",width - cols/2,height - rows/2);
 	cv::imshow("SceneFlow", sf_image);
 
-	saveResults( sf_image );
+	//saveResults( sf_image );
 }
