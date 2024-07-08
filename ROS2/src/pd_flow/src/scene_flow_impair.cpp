@@ -45,7 +45,7 @@ PD_flow_opencv::PD_flow_opencv(unsigned int rows_config,
 	//Maximum value set to 100 at the finest level
 	for (int i=5; i>=0; i--)
 	{
-		if (i >= ctf_levels - 1)
+		if (i >= static_cast<int>(ctf_levels - 1))
 			num_max_iter[i] = 100;	
 		else
 			num_max_iter[i] = num_max_iter[i+1]-15;
