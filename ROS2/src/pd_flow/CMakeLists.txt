@@ -17,7 +17,6 @@ find_package(pd_flow_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(CUDA REQUIRED)
 
-# Definir los directorios de inclusión
 include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${cv_bridge_INCLUDE_DIRS}
@@ -43,9 +42,7 @@ ament_target_dependencies(PD_flow
   rclcpp
   sensor_msgs
   cv_bridge
-  OpenCV
   pd_flow_msgs
-  Eigen3
 )
 
 # Agregar el ejecutable scene_flow_node y sus dependencias
