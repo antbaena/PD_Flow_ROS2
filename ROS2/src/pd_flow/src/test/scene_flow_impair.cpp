@@ -308,7 +308,6 @@ cv::Mat PD_flow_opencv::createImage() const
 	return sf_image;
 }
 
-
 /**
  * Save results without displaying them
  */

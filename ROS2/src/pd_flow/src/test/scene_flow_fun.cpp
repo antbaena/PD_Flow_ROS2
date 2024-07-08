@@ -194,12 +194,55 @@ void PD_flow_fun::initializeCUDA()
     csf_host.allocateDevMemory();
 }
 
-void PD_flow_fun::initializePDFlow()
+// Create the image
+cv::Mat PD_flow_fun::createImage() const
 {
-    initializeCUDA();
-    CaptureFrame();
-    createImagePyramidGPU(colour_wf, depth_wf);
-    CaptureFrame();
-    createImagePyramidGPU(colour_wf, depth_wf);
-    solveSceneFlowGPU();
+	//Save scene flow as an RGB image (one colour per direction)
+	cv::Mat sf_image(rows, cols, CV_8UC3);
+
+    //Compute the max values of the flow (of its components)
+	float maxmodx = 0.f, maxmody = 0.f, maxmodz = 0.f;
+	for (unsigned int v=0; v<rows; v++)
+		for (unsigned int u=0; u<cols; u++)
+		{
+            if (fabs(dxp[v + u*rows]) > maxmodx)
+                maxmodx = fabs(dxp[v + u*rows]);
+            if (fabs(dyp[v + u*rows]) > maxmody)
+                maxmody = fabs(dyp[v + u*rows]);
+            if (fabs(dzp[v + u*rows]) > maxmodz)
+                maxmodz = fabs(dzp[v + u*rows]);
+		}
+
+	//Create an RGB representation of the scene flow estimate: 
+	for (unsigned int v=0; v<rows; v++)
+		for (unsigned int u=0; u<cols; u++)
+		{
+            sf_image.at<cv::Vec3b>(v,u)[0] = static_cast<unsigned char>(255.f*fabs(dxp[v + u*rows])/maxmodx); //Blue - x
+            sf_image.at<cv::Vec3b>(v,u)[1] = static_cast<unsigned char>(255.f*fabs(dyp[v + u*rows])/maxmody); //Green - y
+            sf_image.at<cv::Vec3b>(v,u)[2] = static_cast<unsigned char>(255.f*fabs(dzp[v + u*rows])/maxmodz); //Red - z
+		}
+	
+
+	return sf_image;
 }
+
+void PD_flow_fun::showAndSaveResults( )
+{
+	cv::Mat sf_image = createImage( );
+
+	//Show the scene flow as an RGB image	
+	cv::namedWindow("SceneFlow", cv::WINDOW_NORMAL);
+    cv::moveWindow("SceneFlow",width - cols/2,height - rows/2);
+	cv::imshow("SceneFlow", sf_image);
+}
+
+// void PD_flow_fun::initializePDFlow()
+// {
+
+//     initializeCUDA();
+//     CaptureFrame();
+//     createImagePyramidGPU();
+//     CaptureFrame();
+//     createImagePyramidGPU();
+//     solveSceneFlowGPU();
+// }
