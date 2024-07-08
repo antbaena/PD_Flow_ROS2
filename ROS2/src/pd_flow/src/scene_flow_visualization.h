@@ -85,12 +85,6 @@ public:
     // Visual (using OpenCV)
     cv::Mat image;
 
-    // OpenNI2 - Camera esto se va a ir a tomar por culo, aqui ros2 astra
-    openni::Status         rc;
-    openni::Device         device;
-    openni::VideoMode      options;
-    openni::VideoStream    rgb, dimage;
-
     // Cuda
     CSF_cuda csf_host, *csf_device;
 
@@ -105,6 +99,7 @@ public:
     void initializeScene();
     void updateScene();
     void initializePDFlow();
+    bool GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img);
 
     PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };

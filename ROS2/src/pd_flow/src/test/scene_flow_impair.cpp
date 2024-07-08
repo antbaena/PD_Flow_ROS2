@@ -45,7 +45,7 @@ PD_flow_opencv::PD_flow_opencv(unsigned int rows_config,
 	//Maximum value set to 100 at the finest level
 	for (int i=5; i>=0; i--)
 	{
-		if (i >= static_cast<int>(ctf_levels - 1))
+		if (i >= ctf_levels - 1)
 			num_max_iter[i] = 100;	
 		else
 			num_max_iter[i] = num_max_iter[i+1]-15;
@@ -81,10 +81,10 @@ void PD_flow_opencv::createImagePyramidGPU()
 {
     //Copy new frames to the scene flow object
     csf_host.copyNewFrames(I, Z);
-
+	cout << "Creating image pyramid" << endl;
     //Copy scene flow object to device
     csf_device = ObjectToDevice(&csf_host);
-
+	cout << "Pasoando a gpu" << endl;
     unsigned int pyr_levels = static_cast<unsigned int>(log2(float(width/cols))) + ctf_levels;
     GaussianPyramidBridge(csf_device, pyr_levels, cam_mode);
 
@@ -308,7 +308,6 @@ cv::Mat PD_flow_opencv::createImage() const
 	return sf_image;
 }
 
-
 /**
  * Save results without displaying them
  */
@@ -359,5 +358,5 @@ void PD_flow_opencv::showAndSaveResults( )
     cv::moveWindow("SceneFlow",width - cols/2,height - rows/2);
 	cv::imshow("SceneFlow", sf_image);
 
-	//saveResults( sf_image );
+	saveResults( sf_image );
 }
