@@ -22,6 +22,7 @@
 *****************************************************************************/
 
 #include <Eigen/Core>
+#include <Eigen/Dense>
 #include <vector>
 #include <stdio.h>
 #include <string.h>

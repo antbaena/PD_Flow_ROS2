@@ -7,63 +7,60 @@
 #include <pd_flow_msgs/msg/flow_field.hpp>
 
 using namespace std;
-using Eigen::MatrixXf;
-CSF_cuda csf_host, *csf_device;
-MatrixXf rgb_matrix;
-MatrixXf depth_matrix;
-unsigned int cam_mode;
-unsigned int rows;
-unsigned int cols;
-unsigned int ctf_levels;
-unsigned int pyr_levels;
-
+const unsigned int rows = 480; // Ajustar según tu imagen
+const unsigned int cols = 640; // Ajustar según tu imagen
 class PDFlowNode : public rclcpp::Node
 {
+
 public:
     PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 240)
     {
+        cout << "Initializing PD_flow" << endl;
         subscription_ = this->create_subscription<pd_flow_msgs::msg::CombinedImage>(
-            "combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
+            "/combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
+
         flow_pub_ = this->create_publisher<pd_flow_msgs::msg::FlowField>("flow_field", 10);
     }
 
 private:
     void topic_callback(const pd_flow_msgs::msg::CombinedImage::SharedPtr msg)
     {
+        cout << "Recibiendo imágenes..." << endl;
         // Convertir imágenes ROS a OpenCV
         cv_bridge::CvImagePtr rgb_cv_ptr;
         cv_bridge::CvImagePtr depth_cv_ptr;
-
         try
         {
-            rgb_cv_ptr = cv_bridge::toCvCopy(msg->rgb_image, sensor_msgs::image_encodings::BGR8);
-            depth_cv_ptr = cv_bridge::toCvCopy(msg->depth_image, sensor_msgs::image_encodings::TYPE_32FC1);
+            // Convertir el mensaje de ROS a imágenes OpenCV
+            rgb_image_ = cv_bridge::toCvCopy(msg->rgb_image, sensor_msgs::image_encodings::RGB8)->image;
+            depth_image_ = cv_bridge::toCvCopy(msg->depth_image, sensor_msgs::image_encodings::TYPE_16UC1)->image;
         }
         catch (cv_bridge::Exception &e)
         {
             RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
             return;
         }
-
-        rgb_image_ = rgb_cv_ptr->image;
-        depth_image_ = depth_cv_ptr->image;
         process_images();
     }
 
     void process_images()
     {
-        if (!rgb_image_.empty() && !depth_image_.empty())
-        {
-            // Pasar las imágenes a PD_flow
-            if (pd_flow_.GetFromRGBDImages(rgb_image_, depth_image_))
-            {
-                pd_flow_.createImagePyramidGPU();
-                pd_flow_.solveSceneFlowGPU();
+        RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
-                // Publicar los resultados
-                publish_flow_field();
-            }
+        // Pasar las imágenes a PD_flow
+        if (pd_flow_.GetFromRGBDImages(rgb_image_, depth_image_))
+        {
+            RCLCPP_INFO(this->get_logger(), "Comenza a calcular flujo óptico...");
+            pd_flow_.createImagePyramidGPU();
+            RCLCPP_INFO(this->get_logger(), "Piramide calculada con exito");
+            pd_flow_.solveSceneFlowGPU();
+            RCLCPP_INFO(this->get_logger(), "Flujo óptico calculado con exito");
+
+            // Publicar los resultados
+            publish_flow_field();
         }
+
+        // Reiniciar las imágenes después de procesarlas
     }
 
     void publish_flow_field()
@@ -85,13 +82,58 @@ private:
             msg.dz[i] = pd_flow_.dz[0](i);
         }
 
+        std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos" << std::endl;
         flow_pub_->publish(msg);
+
+        // Crear imagen OpenCV del flujo óptico
+        cv::Mat flow_image = createImage();
+
+        // Mostrar imagen con OpenCV
+        cv::imshow("Optical Flow", flow_image);
+        cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
+    }
+
+    cv::Mat createImage() const
+    {
+        // Crear imagen RGB (una color por dirección)
+        cv::Mat sf_image(rows, cols, CV_8UC3);
+
+        // Calcular los valores máximos del flujo (de sus componentes)
+        float maxmodx = 0.f, maxmody = 0.f, maxmodz = 0.f;
+        for (unsigned int v = 0; v < rows; v++)
+        {
+            for (unsigned int u = 0; u < cols; u++)
+            {
+                size_t index = v + u * rows;
+                if (fabs(pd_flow_.dx[0](index)) > maxmodx)
+                    maxmodx = fabs(pd_flow_.dx[0](index));
+                if (fabs(pd_flow_.dy[0](index)) > maxmody)
+                    maxmody = fabs(pd_flow_.dy[0](index));
+                if (fabs(pd_flow_.dz[0](index)) > maxmodz)
+                    maxmodz = fabs(pd_flow_.dz[0](index));
+            }
+        }
+
+        // Crear una representación RGB del flujo óptico
+        for (unsigned int v = 0; v < rows; v++)
+        {
+            for (unsigned int u = 0; u < cols; u++)
+            {
+                size_t index = v + u * rows;
+                sf_image.at<cv::Vec3b>(v, u)[0] = static_cast<unsigned char>(255.f * fabs(pd_flow_.dx[0](index)) / maxmodx); // Azul - x
+                sf_image.at<cv::Vec3b>(v, u)[1] = static_cast<unsigned char>(255.f * fabs(pd_flow_.dy[0](index)) / maxmody); // Verde - y
+                sf_image.at<cv::Vec3b>(v, u)[2] = static_cast<unsigned char>(255.f * fabs(pd_flow_.dz[0](index)) / maxmodz); // Rojo - z
+            }
+        }
+
+        return sf_image;
     }
 
     rclcpp::Subscription<pd_flow_msgs::msg::CombinedImage>::SharedPtr subscription_;
     rclcpp::Publisher<pd_flow_msgs::msg::FlowField>::SharedPtr flow_pub_;
-    cv::Mat rgb_image_, depth_image_;
     PD_flow pd_flow_;
+    cv::Mat rgb_image_;
+    cv::Mat depth_image_;
 };
 
 int main(int argc, char *argv[])

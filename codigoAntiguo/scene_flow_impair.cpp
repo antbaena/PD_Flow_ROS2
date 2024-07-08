@@ -22,7 +22,7 @@
 *****************************************************************************/
 
 #include "scene_flow_impair.h"
-using namespace cv;
+
 bool  fileExists(const std::string& path)
 {
     return 0 == access(path.c_str(), 0x00 ); // 0x00 = Check for existence only!
@@ -81,10 +81,10 @@ void PD_flow_opencv::createImagePyramidGPU()
 {
     //Copy new frames to the scene flow object
     csf_host.copyNewFrames(I, Z);
-	cout << "Creating image pyramid" << endl;
+
     //Copy scene flow object to device
     csf_device = ObjectToDevice(&csf_host);
-	cout << "Pasoando a gpu" << endl;
+
     unsigned int pyr_levels = static_cast<unsigned int>(log2(float(width/cols))) + ctf_levels;
     GaussianPyramidBridge(csf_device, pyr_levels, cam_mode);
 
@@ -175,7 +175,7 @@ void PD_flow_opencv::freeGPUMemory()
 void PD_flow_opencv::initializeCUDA()
 {
 	//Read one image to know the image resolution
-	intensity1 = cv::imread(intensity_filename_1, cv::IMREAD_GRAYSCALE);
+	intensity1 = cv::imread(intensity_filename_1, CV_LOAD_IMAGE_GRAYSCALE);
 
 	width = intensity1.cols;
 	height = intensity1.rows;
@@ -220,7 +220,7 @@ bool PD_flow_opencv::loadRGBDFrames()
 	cv::Mat depth_float;
 
 	//First intensity image
-	intensity1 = cv::imread(intensity_filename_1, cv::IMREAD_GRAYSCALE);
+	intensity1 = cv::imread(intensity_filename_1, CV_LOAD_IMAGE_GRAYSCALE);
 	if (intensity1.empty())
 	{
 		printf("\nThe first intensity image (%s) cannot be found, please check that it is in the correct folder \n", intensity_filename_1);
@@ -248,7 +248,7 @@ bool PD_flow_opencv::loadRGBDFrames()
 
 
 	//Second intensity image
-	intensity2 = cv::imread(intensity_filename_2, cv::IMREAD_GRAYSCALE);
+	intensity2 = cv::imread(intensity_filename_2, CV_LOAD_IMAGE_GRAYSCALE);
 	if (intensity2.empty())
 	{
 		printf("\nThe second intensity image (%s) cannot be found, please check that it is in the correct folder \n", intensity_filename_2);
@@ -307,6 +307,7 @@ cv::Mat PD_flow_opencv::createImage() const
 
 	return sf_image;
 }
+
 
 /**
  * Save results without displaying them
