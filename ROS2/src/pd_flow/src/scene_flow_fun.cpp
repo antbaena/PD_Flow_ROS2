@@ -1,59 +1,36 @@
-/*****************************************************************************
-**				Primal-Dual Scene Flow for RGB-D cameras					**
-**				----------------------------------------					**
-**																			**
-**	Copyright(c) 2015, Mariano Jaimez Tarifa, University of Malaga			**
-**	Copyright(c) 2015, Mohamed Souiai, Technical University of Munich		**
-**	Copyright(c) 2015, MAPIR group, University of Malaga					**
-**	Copyright(c) 2015, Computer Vision group, Tech. University of Munich	**
-**																			**
-**  This program is free software: you can redistribute it and/or modify	**
-**  it under the terms of the GNU General Public License (version 3) as		**
-**	published by the Free Software Foundation.								**
-**																			**
-**  This program is distributed in the hope that it will be useful, but		**
-**	WITHOUT ANY WARRANTY; without even the implied warranty of				**
-**  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the			**
-**  GNU General Public License for more details.							**
-**																			**
-**  You should have received a copy of the GNU General Public License		**
-**  along with this program.  If not, see <http://www.gnu.org/licenses/>.	**
-**																			**
-*****************************************************************************/
-
-#include "scene_flow_fun.h";
+#include "scene_flow_fun.h"
 
 PD_flow_fun::PD_flow_fun(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config)
-{     
+{
     rows = rows_config;      //Maximum size of the coarse-to-fine scheme - Default 240 (QVGA)
     cols = rows*320/240;
     cam_mode = cam_mode_config;   // (1 - 640 x 480, 2 - 320 x 240), Default - 1
     ctf_levels = round(log2(rows/15)) + 1;
     fovh = M_PI*62.5f/180.f;
     fovv = M_PI*45.f/180.f;
-	fps = fps_config;		//In Hz, Default - 30
+    fps = fps_config;       //In Hz, Default - 30
 
-	//Iterations of the primal-dual solver at each pyramid level.
-	//Maximum value set to 100 at the finest level
-	for (int i=5; i>=0; i--)
-	{
-		if (i >= ctf_levels - 1)
-			num_max_iter[i] = 100;	
-		else
-			num_max_iter[i] = num_max_iter[i+1]-15;
-	}
+    //Iterations of the primal-dual solver at each pyramid level.
+    //Maximum value set to 100 at the finest level
+    for (int i=5; i>=0; i--)
+    {
+        if (i >= static_cast<int>(ctf_levels - 1))
+            num_max_iter[i] = 100;
+        else
+            num_max_iter[i] = num_max_iter[i+1]-15;
+    }
 
-	//num_max_iter[ctf_levels-1] = 0.f;
+    //num_max_iter[ctf_levels-1] = 0.f;
 
     //Compute gaussian mask
-	float v_mask[5] = {1.f,4.f,6.f,4.f,1.f};
+    float v_mask[5] = {1.f,4.f,6.f,4.f,1.f};
     for (unsigned int i=0; i<5; i++)
         for (unsigned int j=0; j<5; j++)
             g_mask[i+5*j] = v_mask[i]*v_mask[j]/256.f;
 
     //Matrices that store the original and filtered images with the image resolution
-    colour_wf.setSize(480/cam_mode,640/cam_mode);
-    depth_wf.setSize(480/cam_mode,640/cam_mode);
+    colour_wf.resize(480/cam_mode,640/cam_mode);
+    depth_wf.resize(480/cam_mode,640/cam_mode);
 
     //Resize vectors according to levels
     dx.resize(ctf_levels); dy.resize(ctf_levels); dz.resize(ctf_levels);
@@ -66,9 +43,9 @@ PD_flow_fun::PD_flow_fun(unsigned int cam_mode_config, unsigned int fps_config, 
     {
         s = pow(2.f,int(ctf_levels-(i+1)));
         cols_i = cols/s; rows_i = rows/s;
-        dx[ctf_levels-i-1].setSize(rows_i,cols_i);
-        dy[ctf_levels-i-1].setSize(rows_i,cols_i);
-        dz[ctf_levels-i-1].setSize(rows_i,cols_i);
+        dx[ctf_levels-i-1].resize(rows_i,cols_i);
+        dy[ctf_levels-i-1].resize(rows_i,cols_i);
+        dz[ctf_levels-i-1].resize(rows_i,cols_i);
     }
 
     //Resize pyramid
@@ -87,20 +64,20 @@ PD_flow_fun::PD_flow_fun(unsigned int cam_mode_config, unsigned int fps_config, 
         s = pow(2.f,int(i));
         colour[i].resize(height/s, width/s);
         colour_old[i].resize(height/s, width/s);
-        colour[i].assign(0.0f);
-        colour_old[i].assign(0.0f);
+        colour[i].setZero();
+        colour_old[i].setZero();
         depth[i].resize(height/s, width/s);
         depth_old[i].resize(height/s, width/s);
-        depth[i].assign(0.0f);
-        depth_old[i].assign(0.0f);
+        depth[i].setZero();
+        depth_old[i].setZero();
         xx[i].resize(height/s, width/s);
         xx_old[i].resize(height/s, width/s);
-        xx[i].assign(0.0f);
-        xx_old[i].assign(0.0f);
+        xx[i].setZero();
+        xx_old[i].setZero();
         yy[i].resize(height/s, width/s);
         yy_old[i].resize(height/s, width/s);
-        yy[i].assign(0.0f);
-        yy_old[i].assign(0.0f);
+        yy[i].setZero();
+        yy_old[i].setZero();
     }
 
     //Parameters of the variational method
@@ -159,16 +136,16 @@ void PD_flow_fun::solveSceneFlowGPU()
             UpsampleBridge(csf_device);
 
         //Compute connectivity (Rij)
-		RijBridge(csf_device);
-		
-		//Compute colour and depth derivatives
+        RijBridge(csf_device);
+
+        //Compute colour and depth derivatives
         ImageGradientsBridge(csf_device);
         WarpingBridge(csf_device);
 
         //Compute mu_uv and step sizes for the primal-dual algorithm
         MuAndStepSizesBridge(csf_device);
 
-		//Primal-Dual solver
+        //Primal-Dual solver
         for (num_iter = 0; num_iter < num_max_iter[i]; num_iter++)
         {
             GradientBridge(csf_device);
@@ -190,11 +167,11 @@ void PD_flow_fun::solveSceneFlowGPU()
         csf_host.freeLevelVariables();
 
         //Copy motion field and images to CPU
-		csf_host.copyAllSolutions(dx[ctf_levels-i-1].data(), dy[ctf_levels-i-1].data(), dz[ctf_levels-i-1].data(),
+        csf_host.copyAllSolutions(dx[ctf_levels-i-1].data(), dy[ctf_levels-i-1].data(), dz[ctf_levels-i-1].data(),
                         depth[level_image].data(), depth_old[level_image].data(), colour[level_image].data(), colour_old[level_image].data(),
                         xx[level_image].data(), xx_old[level_image].data(), yy[level_image].data(), yy_old[level_image].data());
 
-		//For debugging
+        //For debugging
         //DebugBridge(csf_device);
 
         //=========================================================================
@@ -217,55 +194,12 @@ void PD_flow_fun::initializeCUDA()
     csf_host.allocateDevMemory();
 }
 
-// Create the image
-cv::Mat PD_flow_fun::createImage() const
+void PD_flow_fun::initializePDFlow()
 {
-	//Save scene flow as an RGB image (one colour per direction)
-	cv::Mat sf_image(rows, cols, CV_8UC3);
-
-    //Compute the max values of the flow (of its components)
-	float maxmodx = 0.f, maxmody = 0.f, maxmodz = 0.f;
-	for (unsigned int v=0; v<rows; v++)
-		for (unsigned int u=0; u<cols; u++)
-		{
-            if (fabs(dxp[v + u*rows]) > maxmodx)
-                maxmodx = fabs(dxp[v + u*rows]);
-            if (fabs(dyp[v + u*rows]) > maxmody)
-                maxmody = fabs(dyp[v + u*rows]);
-            if (fabs(dzp[v + u*rows]) > maxmodz)
-                maxmodz = fabs(dzp[v + u*rows]);
-		}
-
-	//Create an RGB representation of the scene flow estimate: 
-	for (unsigned int v=0; v<rows; v++)
-		for (unsigned int u=0; u<cols; u++)
-		{
-            sf_image.at<cv::Vec3b>(v,u)[0] = static_cast<unsigned char>(255.f*fabs(dxp[v + u*rows])/maxmodx); //Blue - x
-            sf_image.at<cv::Vec3b>(v,u)[1] = static_cast<unsigned char>(255.f*fabs(dyp[v + u*rows])/maxmody); //Green - y
-            sf_image.at<cv::Vec3b>(v,u)[2] = static_cast<unsigned char>(255.f*fabs(dzp[v + u*rows])/maxmodz); //Red - z
-		}
-	
-
-	return sf_image;
+    initializeCUDA();
+    CaptureFrame();
+    createImagePyramidGPU(colour_wf, depth_wf);
+    CaptureFrame();
+    createImagePyramidGPU(colour_wf, depth_wf);
+    solveSceneFlowGPU();
 }
-
-void PD_flow_fun::showAndSaveResults( )
-{
-	cv::Mat sf_image = createImage( );
-
-	//Show the scene flow as an RGB image	
-	cv::namedWindow("SceneFlow", cv::WINDOW_NORMAL);
-    cv::moveWindow("SceneFlow",width - cols/2,height - rows/2);
-	cv::imshow("SceneFlow", sf_image);
-}
-
-// void PD_flow_fun::initializePDFlow()
-// {
-
-//     initializeCUDA();
-//     CaptureFrame();
-//     createImagePyramidGPU();
-//     CaptureFrame();
-//     createImagePyramidGPU();
-//     solveSceneFlowGPU();
-// }
