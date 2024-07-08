@@ -4,7 +4,6 @@
 #include <opencv2/opencv.hpp>
 #include <pd_flow_msgs/msg/combined_image.hpp>
 #include "scene_flow_impair.h"
-
 using namespace std;
 
 class SceneFlowNode : public rclcpp::Node
@@ -21,18 +20,19 @@ private:
     void image_callback(const pd_flow_msgs::msg::CombinedImage::SharedPtr msg)
     {
         // Buffer the received images
-        rgb_image_ = msg->rgb_image;
-        depth_image_ = msg->depth_image;
+        rgb_image_ = std::make_shared<sensor_msgs::msg::Image>(msg->rgb_image);
+        depth_image_ = std::make_shared<sensor_msgs::msg::Image>(msg->depth_image);
 
         // Check if both images are available
         if (rgb_image_ && depth_image_)
         {
             // Convert ROS image messages to OpenCV images
             cv_bridge::CvImagePtr cv_ptr_rgb;
+            cv::Mat intensity_image_1;
             try
             {
                 cv_ptr_rgb = cv_bridge::toCvCopy(rgb_image_, sensor_msgs::image_encodings::BGR8);
-                cv::Mat intensity_image_1 = cv_ptr_rgb->image;
+                intensity_image_1 = cv_ptr_rgb->image;
             }
             catch (cv_bridge::Exception& e)
             {
@@ -41,10 +41,11 @@ private:
             }
 
             cv_bridge::CvImagePtr cv_ptr_depth;
+            cv::Mat depth_image_1;
             try
             {
                 cv_ptr_depth = cv_bridge::toCvCopy(depth_image_, depth_image_->encoding);
-                cv::Mat depth_image_1 = cv_ptr_depth->image;
+                depth_image_1 = cv_ptr_depth->image;
             }
             catch (cv_bridge::Exception& e)
             {
@@ -52,7 +53,7 @@ private:
                 return;
             }
 
-            // Here, simulate a second pair of images. In a real-world scenario, you might receive these as well
+            // Simulate a second pair of images by cloning the first pair
             cv::Mat intensity_image_2 = intensity_image_1.clone();  // Example: use the same image
             cv::Mat depth_image_2 = depth_image_1.clone();          // Example: use the same image
 
