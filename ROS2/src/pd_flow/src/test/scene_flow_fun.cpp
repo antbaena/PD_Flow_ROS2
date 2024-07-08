@@ -203,125 +203,6 @@ void PD_flow_fun::solveSceneFlowGPU()
     }
 }
 
-// bool PD_flow_fun::OpenCamera()
-// {
-// 	rc = openni::STATUS_OK;
-
-//     const char* deviceURI = openni::ANY_DEVICE;
-
-//     rc = openni::OpenNI::initialize();
-
-//     printf("Opening camera...\n %s\n", openni::OpenNI::getExtendedError());
-//     rc = device.open(deviceURI);
-//     if (rc != openni::STATUS_OK)
-//     {
-//         printf("Device open failed:\n%s\n", openni::OpenNI::getExtendedError());
-//         openni::OpenNI::shutdown();
-//         return 1;
-//     }
-
-//     //								Create RGB and Depth channels
-//     //========================================================================================
-//     rc = dimage.create(device, openni::SENSOR_DEPTH);
-//     rc = rgb.create(device, openni::SENSOR_COLOR);
-
-
-// 	//                            Configure some properties (resolution)
-// 	//========================================================================================
-//     rc = device.setImageRegistrationMode(openni::IMAGE_REGISTRATION_DEPTH_TO_COLOR);
-
-//     options = rgb.getVideoMode();
-//     if (cam_mode == 1)
-//         options.setResolution(640,480);
-//     else
-//         options.setResolution(320,240);
-
-//     rc = rgb.setVideoMode(options);
-//     rc = rgb.setMirroringEnabled(false);
-
-//     options = dimage.getVideoMode();
-//     if (cam_mode == 1)
-//         options.setResolution(640,480);
-//     else
-//         options.setResolution(320,240);
-
-//     rc = dimage.setVideoMode(options);
-//     rc = dimage.setMirroringEnabled(false);
-
-//     //Turn off autoExposure
-//     rgb.getCameraSettings()->setAutoExposureEnabled(false);
-//     printf("Auto Exposure: %s \n", rgb.getCameraSettings()->getAutoExposureEnabled() ? "ON" : "OFF");
-
-//     //Check final resolution
-//     options = rgb.getVideoMode();
-//     printf("Resolution (%d, %d) \n", options.getResolutionX(), options.getResolutionY());
-
-// 	//								Start channels
-// 	//===================================================================================
-//     rc = dimage.start();
-//     if (rc != openni::STATUS_OK)
-//     {
-//         printf("Couldn't start depth stream:\n%s\n", openni::OpenNI::getExtendedError());
-//         dimage.destroy();
-//     }
-
-//     rc = rgb.start();
-//     if (rc != openni::STATUS_OK)
-//     {
-//         printf("Couldn't start rgb stream:\n%s\n", openni::OpenNI::getExtendedError());
-//         rgb.destroy();
-//     }
-
-//     if (!dimage.isValid() || !rgb.isValid())
-//     {
-//         printf("Camera: No valid streams. Exiting\n");
-//         openni::OpenNI::shutdown();
-//         return 1;
-//     }
-
-//     return 0;
-// }
-
-// void PD_flow_fun::CloseCamera()
-// {
-//     rgb.destroy();
-//     openni::OpenNI::shutdown();
-// }
-
-// void PD_flow_fun::CaptureFrame()
-// {
-//     openni::VideoFrameRef framergb, framed;
-//     rgb.readFrame(&framergb);
-//     dimage.readFrame(&framed);
-
-//     const int height = framergb.getHeight();
-//     const int width = framergb.getWidth();
-
-//     if ((framed.getWidth() != framergb.getWidth()) || (framed.getHeight() != framergb.getHeight()))
-//         cout << endl << "The RGB and the depth frames don't have the same size.";
-
-//     else
-//     {
-//         //Read new frame
-//         const openni::DepthPixel* pDepthRow = (const openni::DepthPixel*)framed.getData();
-//         const openni::RGB888Pixel* pRgbRow = (const openni::RGB888Pixel*)framergb.getData();
-//         int rowSize = framergb.getStrideInBytes() / sizeof(openni::RGB888Pixel);
-
-//         for (int yc = height-1; yc >= 0; --yc)
-//         {
-//             const openni::RGB888Pixel* pRgb = pRgbRow;
-//             const openni::DepthPixel* pDepth = pDepthRow;
-//             for (int xc = width-1; xc >= 0; --xc, ++pRgb, ++pDepth)
-//             {
-//                 colour_wf(yc,xc) = 0.299*pRgb->r + 0.587*pRgb->g + 0.114*pRgb->b;
-//                 depth_wf(yc,xc) = 0.001f*(*pDepth);
-//             }
-//             pRgbRow += rowSize;
-//             pDepthRow += rowSize;
-//         }
-//     }
-// }
-
 void PD_flow_fun::freeGPUMemory()
 {
     csf_host.freeDeviceMemory();
@@ -336,15 +217,55 @@ void PD_flow_fun::initializeCUDA()
     csf_host.allocateDevMemory();
 }
 
-
-
-void PD_flow_fun::initializePDFlow()
+// Create the image
+cv::Mat PD_flow_fun::createImage() const
 {
+	//Save scene flow as an RGB image (one colour per direction)
+	cv::Mat sf_image(rows, cols, CV_8UC3);
 
-    initializeCUDA();
-    CaptureFrame();
-    createImagePyramidGPU();
-    CaptureFrame();
-    createImagePyramidGPU();
-    solveSceneFlowGPU();
+    //Compute the max values of the flow (of its components)
+	float maxmodx = 0.f, maxmody = 0.f, maxmodz = 0.f;
+	for (unsigned int v=0; v<rows; v++)
+		for (unsigned int u=0; u<cols; u++)
+		{
+            if (fabs(dxp[v + u*rows]) > maxmodx)
+                maxmodx = fabs(dxp[v + u*rows]);
+            if (fabs(dyp[v + u*rows]) > maxmody)
+                maxmody = fabs(dyp[v + u*rows]);
+            if (fabs(dzp[v + u*rows]) > maxmodz)
+                maxmodz = fabs(dzp[v + u*rows]);
+		}
+
+	//Create an RGB representation of the scene flow estimate: 
+	for (unsigned int v=0; v<rows; v++)
+		for (unsigned int u=0; u<cols; u++)
+		{
+            sf_image.at<cv::Vec3b>(v,u)[0] = static_cast<unsigned char>(255.f*fabs(dxp[v + u*rows])/maxmodx); //Blue - x
+            sf_image.at<cv::Vec3b>(v,u)[1] = static_cast<unsigned char>(255.f*fabs(dyp[v + u*rows])/maxmody); //Green - y
+            sf_image.at<cv::Vec3b>(v,u)[2] = static_cast<unsigned char>(255.f*fabs(dzp[v + u*rows])/maxmodz); //Red - z
+		}
+	
+
+	return sf_image;
 }
+
+void PD_flow_fun::showAndSaveResults( )
+{
+	cv::Mat sf_image = createImage( );
+
+	//Show the scene flow as an RGB image	
+	cv::namedWindow("SceneFlow", cv::WINDOW_NORMAL);
+    cv::moveWindow("SceneFlow",width - cols/2,height - rows/2);
+	cv::imshow("SceneFlow", sf_image);
+}
+
+// void PD_flow_fun::initializePDFlow()
+// {
+
+//     initializeCUDA();
+//     CaptureFrame();
+//     createImagePyramidGPU();
+//     CaptureFrame();
+//     createImagePyramidGPU();
+//     solveSceneFlowGPU();
+// }
