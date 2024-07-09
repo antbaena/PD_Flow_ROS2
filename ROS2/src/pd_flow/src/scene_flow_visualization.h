@@ -33,10 +33,7 @@
 #include <chrono>
 #include <thread>
 
-
-
 inline int stoi(char *c) { return int(std::strtol(c, NULL, 10)); }
-
 
 using namespace std;
 using namespace std::chrono;
@@ -99,7 +96,9 @@ public:
     void initializeScene();
     void updateScene();
     void initializePDFlow();
+    void process_frame( cv::Mat &rgb_image,  cv::Mat &depth_image);
     bool GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img);
+
 
     PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };
