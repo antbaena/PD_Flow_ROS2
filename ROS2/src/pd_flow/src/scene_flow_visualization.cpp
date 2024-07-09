@@ -116,6 +116,7 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
 
 void PD_flow::createImagePyramidGPU()
 {
+
     // Copy new frames to the scene flow object
     csf_host.copyNewFrames(colour_wf.data(), depth_wf.data());
 
@@ -131,34 +132,60 @@ void PD_flow::createImagePyramidGPU()
 
 void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
 {
-    if (rgb_image.size() != depth_image.size() || rgb_image.empty() || depth_image.empty())
+    // Verifica que las imágenes no estén vacías
+    if (rgb_image.empty() || depth_image.empty())
     {
-        cout << "The RGB and the depth images don't have the same size or are empty." << endl;
-        return;
+        throw std::invalid_argument("Las imágenes no deben estar vacías.");
     }
 
-    int width = rgb_image.cols;
-    int height = rgb_image.rows;
+    // Convierte la imagen RGB de cv::Mat a Eigen::MatrixXf
 
-    // Resize the colour_wf and depth_wf matrices if necessary
-    if (colour_wf.rows() != width || colour_wf.rows() != height)
+    for (int i = 0; i < rgb_image.rows; ++i)
     {
-        colour_wf.resize(height, width);
-        depth_wf.resize(height, width);
-    }
-
-    // Read new frame
-    for (int yc = height - 1; yc >= 0; --yc)
-    {
-        for (int xc = width - 1; xc >= 0; --xc)
+        for (int j = 0; j < rgb_image.cols; ++j)
         {
-            cv::Vec3b pRgb = rgb_image.at<cv::Vec3b>(yc, xc);
-            float pDepth = depth_image.at<float>(yc, xc);
-
-            colour_wf(yc, xc) = 0.299 * pRgb[2] + 0.587 * pRgb[1] + 0.114 * pRgb[0];
-            depth_wf(yc, xc) = 0.001f * pDepth;
+            // Supongamos que quieres tomar solo el canal rojo de la imagen RGB
+            colour_wf(i, j) = static_cast<float>(rgb_image.at<cv::Vec3b>(i, j)[2]); // Canal rojo
         }
     }
+
+    // Convierte la imagen de profundidad de cv::Mat a Eigen::MatrixXf
+
+    for (int i = 0; i < depth_image.rows; ++i)
+    {
+        for (int j = 0; j < depth_image.cols; ++j)
+        {
+            depth_wf(i, j) = static_cast<float>(depth_image.at<uchar>(i, j));
+        }
+    }
+}
+
+void PD_flow::process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image)
+{
+
+    // Convert the RGB image to grayscale
+    cv::Mat gray_image;
+    cv::cvtColor(rgb_image, gray_image, cv::COLOR_BGR2GRAY);
+
+    // Ensure the gray_image is of type CV_32FC1 (float, 1 channel)
+    if (gray_image.type() != CV_32FC1)
+    {
+        gray_image.convertTo(gray_image, CV_32FC1);
+    }
+
+    // Ensure the depth_image is of type CV_32FC1 (float, 1 channel)
+    if (depth_image.type() != CV_32FC1)
+    {
+        depth_image.convertTo(depth_image, CV_32FC1);
+    }
+
+    // Convert the grayscale image to Eigen matrix
+    cv::cv2eigen(gray_image, colour_wf);
+
+    // Convert the depth image to Eigen matrix
+    cv::cv2eigen(depth_image, depth_wf);
+
+    // Now you can use colour_wf and depth_wf as Eigen matrices
 }
 
 void PD_flow::solveSceneFlowGPU()
@@ -307,11 +334,12 @@ void PD_flow::updateScene()
         {
             // Obtener la profundidad y los desplazamientos de cada punto
             float depth_value = depth[repr_level](v, u);
+            // cout << "Depth value of pixel (" << u << ", " << v << "): " << depth_value << endl;
             if (depth_value > 0.1f)
             {
                 // Escalar los valores de desplazamiento para visualizarlos mejor
-                float dx_scaled = dx[0](v, u) * 10;
-                float dy_scaled = dy[0](v, u) * 10;
+                float dx_scaled = dx[repr_level](v, u) ;
+                float dy_scaled = dy[repr_level](v, u) ;
 
                 // Dibujar la línea que representa el vector de movimiento
                 cv::Point2f start_point(u, v);
@@ -319,33 +347,54 @@ void PD_flow::updateScene()
 
                 // Dibujar el vector en la imagen (usar color azul)
                 cv::arrowedLine(motion_field, start_point, end_point, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+
+                // Convertir valores de color y profundidad a formatos adecuados para visualización
+                color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
+
+                depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
             }
-
-            // Convertir valores de color y profundidad a formatos adecuados para visualización
-            color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
-
-            depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
         }
     }
 
-    // Normalizar la imagen de profundidad para visualización
-    cv::Mat depth_image_display;
-    cv::normalize(depth_image, depth_image_display, 0, 255, cv::NORM_MINMAX);
-    depth_image_display.convertTo(depth_image_display, CV_8UC1);
-
-
-    cv::Mat motion_field_display;
-    cv::normalize(motion_field, motion_field_display, 0, 255, cv::NORM_MINMAX);
-    motion_field_display.convertTo(motion_field_display, CV_8UC1);
-
     // Mostrar la imagen del campo de movimiento
-    cv::imshow("Motion Field", motion_field_display);
+    cv::imshow("Motion Field", motion_field);
 
     // Mostrar la imagen de color
     cv::imshow("Color Image", color_image);
 
     // Mostrar la imagen de profundidad
-    cv::imshow("Depth Image", depth_image_display);
+    cv::imshow("Depth Image", depth_image);
 
     cv::waitKey(1); // Espera breve para actualizar las ventanas
+}
+
+void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors)
+{
+    // Compute the representation level
+    const unsigned int repr_level = std::round(std::log2(colour_wf.cols() / cols));
+
+    // Ensure the depth arrays are properly indexed
+    const Eigen::MatrixXf &depth_current = depth[repr_level];
+    const Eigen::MatrixXf &xx_current = xx[repr_level];
+    const Eigen::MatrixXf &yy_current = yy[repr_level];
+
+    // Prepare the point cloud
+    points.clear();
+    vectors.clear();
+    for (int v = 0; v < rows; ++v)
+    {
+        for (int u = 0; u < cols; ++u)
+        {
+            float depth_value = depth_current(v, u);
+            if (depth_value > 0.1f)
+            {
+                float dx_scaled = dx[repr_level](v, u);
+                float dy_scaled = dy[repr_level](v, u);
+                float dz_scaled = dz[repr_level](v, u);
+
+                points.emplace_back(depth_current(v, u), xx_current(v, u), yy_current(v, u) );
+                vectors.emplace_back(dx_scaled, dy_scaled, dz_scaled);
+            }
+        }
+    }
 }

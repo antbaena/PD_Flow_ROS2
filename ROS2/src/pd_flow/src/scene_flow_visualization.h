@@ -29,6 +29,7 @@
 #include "pdflow_cudalib.h"
 #include "legend_pdflow.xpm"
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -96,9 +97,10 @@ public:
     void initializeScene();
     void updateScene();
     void initializePDFlow();
-    void process_frame( cv::Mat &rgb_image,  cv::Mat &depth_image);
+    void process_frame(cv::Mat &rgb_image, cv::Mat &depth_image);
+    void process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image);
     bool GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img);
-
+    void processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors);
 
     PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };

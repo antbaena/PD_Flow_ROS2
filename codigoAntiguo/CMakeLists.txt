@@ -7,7 +7,7 @@ endif(COMMAND cmake_policy)
 
 FIND_PACKAGE(CUDA REQUIRED)
 INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS})
-set(CUDA_NVCC_FLAGS "-arch=sm_20")
+set(CUDA_NVCC_FLAGS "-arch=sm_61")
 
 #Build scene flow CUDA lib
 CUDA_ADD_LIBRARY(pdflow_cudalib pdflow_cudalib.h pdflow_cudalib.cu)
