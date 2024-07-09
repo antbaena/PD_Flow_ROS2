@@ -100,5 +100,6 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "__nullptr": "cpp"
-    }
+    },
+    "ros.distro": "humble"
 }
