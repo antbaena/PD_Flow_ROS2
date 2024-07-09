@@ -34,12 +34,6 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
     fovh = M_PI * 62.5f / 180.f;
     fovv = M_PI * 45.f / 180.f;
     fps = fps_config; // In Hz, Default - 30
-    cout << "Initializing PD_flow" << endl;
-    cout << "Rows: " << rows << endl;
-    cout << "Cols: " << cols << endl;
-    cout << "Cam mode: " << cam_mode << endl;
-    cout << "CTF levels: " << ctf_levels << endl;
-    cout << "FPS: " << fps << endl;
 
     // Iterations of the primal-dual solver at each pyramid level.
     // Maximum value set to 100 at the finest level
@@ -118,33 +112,53 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
     lambda_i = 0.04f;
     lambda_d = 0.35f;
     mu = 75.f;
-
-    //-------------------------------------------------------------------------
-    //                          Cuda - Begin - Initialize
-    //-------------------------------------------------------------------------
-
-    // Read parameters
-    csf_host.readParameters(rows, cols, lambda_i, lambda_d, mu, g_mask, ctf_levels, cam_mode, fovh, fovv);
-
-    // Allocate memory
-    csf_host.allocateDevMemory();
-
-    cout << "PD_flow initialized" << endl;
 }
 
 void PD_flow::createImagePyramidGPU()
 {
     // Copy new frames to the scene flow object
     csf_host.copyNewFrames(colour_wf.data(), depth_wf.data());
-    cout << "Creating image pyramid" << endl;
+
     // Copy scene flow object to device
     csf_device = ObjectToDevice(&csf_host);
-    cout << "Object copied to device" << endl;
+
     unsigned int pyr_levels = round(log2(640 / (cam_mode * cols))) + ctf_levels;
     GaussianPyramidBridge(csf_device, pyr_levels, cam_mode);
 
     // Copy scene flow object back to host
     BridgeBack(&csf_host, csf_device);
+}
+
+void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
+{
+    if (rgb_image.size() != depth_image.size() || rgb_image.empty() || depth_image.empty())
+    {
+        cout << "The RGB and the depth images don't have the same size or are empty." << endl;
+        return;
+    }
+
+    int width = rgb_image.cols;
+    int height = rgb_image.rows;
+
+    // Resize the colour_wf and depth_wf matrices if necessary
+    if (colour_wf.rows() != width || colour_wf.rows() != height)
+    {
+        colour_wf.resize(height, width);
+        depth_wf.resize(height, width);
+    }
+
+    // Read new frame
+    for (int yc = height - 1; yc >= 0; --yc)
+    {
+        for (int xc = width - 1; xc >= 0; --xc)
+        {
+            cv::Vec3b pRgb = rgb_image.at<cv::Vec3b>(yc, xc);
+            float pDepth = depth_image.at<float>(yc, xc);
+
+            colour_wf(yc, xc) = 0.299 * pRgb[2] + 0.587 * pRgb[1] + 0.114 * pRgb[0];
+            depth_wf(yc, xc) = 0.001f * pDepth;
+        }
+    }
 }
 
 void PD_flow::solveSceneFlowGPU()
@@ -223,6 +237,7 @@ void PD_flow::solveSceneFlowGPU()
         //=========================================================================
     }
 }
+
 bool PD_flow::GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img)
 {
     if (rgb_img.empty() || depth_img.empty())
@@ -256,4 +271,81 @@ bool PD_flow::GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img)
     depth_wf = depth_wf_temp.cast<float>();
 
     return true;
+}
+
+void PD_flow::initializeCUDA()
+{
+    // Read parameters
+    csf_host.readParameters(rows, cols, lambda_i, lambda_d, mu, g_mask, ctf_levels, cam_mode, fovh, fovv);
+
+    // Allocate memory
+    csf_host.allocateDevMemory();
+}
+
+void PD_flow::freeGPUMemory()
+{
+    csf_host.freeDeviceMemory();
+}
+
+void PD_flow::initializePDFlow()
+{
+    initializeCUDA();
+}
+
+void PD_flow::updateScene()
+{
+    // Crear imágenes para mostrar el campo de movimiento, color y profundidad
+    cv::Mat motion_field = cv::Mat::zeros(rows, cols, CV_8UC3);
+    cv::Mat color_image(rows, cols, CV_8UC3);
+    cv::Mat depth_image(rows, cols, CV_8UC1);
+
+    const unsigned int repr_level = round(log2(colour_wf.cols() / cols));
+
+    for (unsigned int v = 0; v < rows; v++)
+    {
+        for (unsigned int u = 0; u < cols; u++)
+        {
+            // Obtener la profundidad y los desplazamientos de cada punto
+            float depth_value = depth[repr_level](v, u);
+            if (depth_value > 0.1f)
+            {
+                // Escalar los valores de desplazamiento para visualizarlos mejor
+                float dx_scaled = dx[0](v, u) * 10;
+                float dy_scaled = dy[0](v, u) * 10;
+
+                // Dibujar la línea que representa el vector de movimiento
+                cv::Point2f start_point(u, v);
+                cv::Point2f end_point(u + dx_scaled, v + dy_scaled);
+
+                // Dibujar el vector en la imagen (usar color azul)
+                cv::arrowedLine(motion_field, start_point, end_point, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+            }
+
+            // Convertir valores de color y profundidad a formatos adecuados para visualización
+            color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
+
+            depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
+        }
+    }
+
+    // Normalizar la imagen de profundidad para visualización
+    cv::Mat depth_image_display;
+    cv::normalize(depth_image, depth_image_display, 0, 255, cv::NORM_MINMAX);
+    depth_image_display.convertTo(depth_image_display, CV_8UC1);
+
+
+    cv::Mat motion_field_display;
+    cv::normalize(motion_field, motion_field_display, 0, 255, cv::NORM_MINMAX);
+    motion_field_display.convertTo(motion_field_display, CV_8UC1);
+
+    // Mostrar la imagen del campo de movimiento
+    cv::imshow("Motion Field", motion_field_display);
+
+    // Mostrar la imagen de color
+    cv::imshow("Color Image", color_image);
+
+    // Mostrar la imagen de profundidad
+    cv::imshow("Depth Image", depth_image_display);
+
+    cv::waitKey(1); // Espera breve para actualizar las ventanas
 }

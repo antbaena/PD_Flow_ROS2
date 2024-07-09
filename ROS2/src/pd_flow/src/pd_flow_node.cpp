@@ -9,13 +9,17 @@
 using namespace std;
 const unsigned int rows = 480; // Ajustar según tu imagen
 const unsigned int cols = 640; // Ajustar según tu imagen
+bool initialized = false;
+int cont = 0;
 class PDFlowNode : public rclcpp::Node
 {
 
 public:
-    PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 240)
+    PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 480)
     {
         cout << "Initializing PD_flow" << endl;
+
+        // pd_flow_.initializePDFlow();
         subscription_ = this->create_subscription<pd_flow_msgs::msg::CombinedImage>(
             "/combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
 
@@ -25,10 +29,6 @@ public:
 private:
     void topic_callback(const pd_flow_msgs::msg::CombinedImage::SharedPtr msg)
     {
-        cout << "Recibiendo imágenes..." << endl;
-        // Convertir imágenes ROS a OpenCV
-        cv_bridge::CvImagePtr rgb_cv_ptr;
-        cv_bridge::CvImagePtr depth_cv_ptr;
         try
         {
             // Convertir el mensaje de ROS a imágenes OpenCV
@@ -45,11 +45,24 @@ private:
 
     void process_images()
     {
-        RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
-
-        // Pasar las imágenes a PD_flow
-        if (pd_flow_.GetFromRGBDImages(rgb_image_, depth_image_))
+        if (cont == 0)
         {
+            RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
+            pd_flow_.initializePDFlow();
+            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.createImagePyramidGPU();
+        }
+        else if (cont == 1)
+        {
+            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.createImagePyramidGPU();
+            pd_flow_.solveSceneFlowGPU();
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
+            // Pasar las imágenes a PD_flow
+            pd_flow_.process_frame(rgb_image_, depth_image_);
             RCLCPP_INFO(this->get_logger(), "Comenza a calcular flujo óptico...");
             pd_flow_.createImagePyramidGPU();
             RCLCPP_INFO(this->get_logger(), "Piramide calculada con exito");
@@ -57,12 +70,15 @@ private:
             RCLCPP_INFO(this->get_logger(), "Flujo óptico calculado con exito");
 
             // Publicar los resultados
-            publish_flow_field();
+            pd_flow_.updateScene();
         }
-
+        cont++;
         // Reiniciar las imágenes después de procesarlas
+        rgb_image_ = cv::Mat();
+        depth_image_ = cv::Mat();
     }
 
+    
     void publish_flow_field()
     {
         auto msg = pd_flow_msgs::msg::FlowField();

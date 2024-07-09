@@ -44,7 +44,7 @@ private:
     auto combined_msg = pd_flow_msgs::msg::CombinedImage();
     combined_msg.rgb_image = *rgb_image_;
     combined_msg.depth_image = *depth_image_;
-
+ 
     combined_pub_->publish(combined_msg);
     RCLCPP_INFO(this->get_logger(), "Publishing combined Image");
 
