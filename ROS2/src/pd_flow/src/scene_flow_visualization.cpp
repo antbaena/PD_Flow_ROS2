@@ -34,6 +34,12 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
     fovh = M_PI * 62.5f / 180.f;
     fovv = M_PI * 45.f / 180.f;
     fps = fps_config; // In Hz, Default - 30
+    cout << "Initializing PD_flow" << endl;
+    cout << "Rows: " << rows << endl;
+    cout << "Cols: " << cols << endl;
+    cout << "Cam mode: " << cam_mode << endl;
+    cout << "CTF levels: " << ctf_levels << endl;
+    cout << "FPS: " << fps << endl;
 
     // Iterations of the primal-dual solver at each pyramid level.
     // Maximum value set to 100 at the finest level
@@ -54,16 +60,16 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
             g_mask[i + 5 * j] = v_mask[i] * v_mask[j] / 256.f;
 
     // Matrices that store the original and filtered images with the image resolution
-    colour_wf.setSize(480 / cam_mode, 640 / cam_mode);
-    depth_wf.setSize(480 / cam_mode, 640 / cam_mode);
+    colour_wf.resize(480 / cam_mode, 640 / cam_mode);
+    depth_wf.resize(480 / cam_mode, 640 / cam_mode);
 
     // Resize vectors according to levels
     dx.resize(ctf_levels);
     dy.resize(ctf_levels);
     dz.resize(ctf_levels);
 
-    const unsigned int width = colour_wf.getColCount();
-    const unsigned int height = colour_wf.getRowCount();
+    const unsigned int width = colour_wf.cols();
+    const unsigned int height = colour_wf.rows();
     unsigned int s, cols_i, rows_i;
 
     for (unsigned int i = 0; i < ctf_levels; i++)
@@ -71,9 +77,9 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
         s = pow(2.f, int(ctf_levels - (i + 1)));
         cols_i = cols / s;
         rows_i = rows / s;
-        dx[ctf_levels - i - 1].setSize(rows_i, cols_i);
-        dy[ctf_levels - i - 1].setSize(rows_i, cols_i);
-        dz[ctf_levels - i - 1].setSize(rows_i, cols_i);
+        dx[ctf_levels - i - 1].resize(rows_i, cols_i);
+        dy[ctf_levels - i - 1].resize(rows_i, cols_i);
+        dz[ctf_levels - i - 1].resize(rows_i, cols_i);
     }
 
     // Resize pyramid
@@ -92,36 +98,48 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
         s = pow(2.f, int(i));
         colour[i].resize(height / s, width / s);
         colour_old[i].resize(height / s, width / s);
-        colour[i].assign(0.0f);
-        colour_old[i].assign(0.0f);
+        colour[i].setZero();
+        colour_old[i].setZero();
         depth[i].resize(height / s, width / s);
         depth_old[i].resize(height / s, width / s);
-        depth[i].assign(0.0f);
-        depth_old[i].assign(0.0f);
+        depth[i].setZero();
+        depth_old[i].setZero();
         xx[i].resize(height / s, width / s);
         xx_old[i].resize(height / s, width / s);
-        xx[i].assign(0.0f);
-        xx_old[i].assign(0.0f);
+        xx[i].setZero();
+        xx_old[i].setZero();
         yy[i].resize(height / s, width / s);
         yy_old[i].resize(height / s, width / s);
-        yy[i].assign(0.0f);
-        yy_old[i].assign(0.0f);
+        yy[i].setZero();
+        yy_old[i].setZero();
     }
 
     // Parameters of the variational method
     lambda_i = 0.04f;
     lambda_d = 0.35f;
     mu = 75.f;
+
+    //-------------------------------------------------------------------------
+    //                          Cuda - Begin - Initialize
+    //-------------------------------------------------------------------------
+
+    // Read parameters
+    csf_host.readParameters(rows, cols, lambda_i, lambda_d, mu, g_mask, ctf_levels, cam_mode, fovh, fovv);
+
+    // Allocate memory
+    csf_host.allocateDevMemory();
+
+    cout << "PD_flow initialized" << endl;
 }
 
 void PD_flow::createImagePyramidGPU()
 {
     // Copy new frames to the scene flow object
     csf_host.copyNewFrames(colour_wf.data(), depth_wf.data());
-
+    cout << "Creating image pyramid" << endl;
     // Copy scene flow object to device
     csf_device = ObjectToDevice(&csf_host);
-
+    cout << "Object copied to device" << endl;
     unsigned int pyr_levels = round(log2(640 / (cam_mode * cols))) + ctf_levels;
     GaussianPyramidBridge(csf_device, pyr_levels, cam_mode);
 
@@ -205,88 +223,6 @@ void PD_flow::solveSceneFlowGPU()
         //=========================================================================
     }
 }
-
-bool PD_flow::OpenCamera()
-{
-    rc = openni::OpenNI::initialize();
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Initialize failed: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    rc = device.open(openni::ANY_DEVICE);
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Couldn't open device: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    rc = rgb.create(device, openni::SENSOR_COLOR);
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Couldn't create color stream: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    rc = depth_sensor.create(device, openni::SENSOR_DEPTH);
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Couldn't create depth stream: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    rc = rgb.start();
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Couldn't start color stream: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    rc = depth_sensor.start();
-    if (rc != openni::STATUS_OK)
-    {
-        std::cerr << "Couldn't start depth stream: " << openni::OpenNI::getExtendedError() << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-bool PD_flow::GetNextFrame()
-{
-    // OpenNI
-    rgb.readFrame(&frame_rgb);
-    depth_sensor.readFrame(&frame_depth);
-
-    if (frame_rgb.isValid() && frame_depth.isValid())
-    {
-        openni::RGB888Pixel *imageBuffer = (openni::RGB888Pixel *)frame_rgb.getData();
-        unsigned short *depthBuffer = (unsigned short *)frame_depth.getData();
-
-        cv::Mat rgb_image = cv::Mat(480, 640, CV_8UC3, imageBuffer);
-        cv::Mat depth_image = cv::Mat(480, 640, CV_16UC1, depthBuffer);
-
-        // Resize images
-        cv::resize(rgb_image, rgb_image, cv::Size(640 / cam_mode, 480 / cam_mode));
-        cv::resize(depth_image, depth_image, cv::Size(640 / cam_mode, 480 / cam_mode));
-
-        // Convert RGB image to grayscale
-        cv::cvtColor(rgb_image, rgb_image, cv::COLOR_BGR2GRAY);
-
-        // Convert to Eigen matrices
-        colour_wf = Eigen::Map<Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(rgb_image.data, rgb_image.rows, rgb_image.cols);
-        depth_wf = Eigen::Map<Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(depth_image.data, depth_image.rows, depth_image.cols);
-
-        return true;
-    }
-    else
-    {
-        std::cerr << "Frames are not valid." << std::endl;
-        return false;
-    }
-}
-
 bool PD_flow::GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img)
 {
     if (rgb_img.empty() || depth_img.empty())
@@ -302,9 +238,22 @@ bool PD_flow::GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img)
     // Convert RGB image to grayscale
     cv::cvtColor(rgb_img, rgb_img, cv::COLOR_BGR2GRAY);
 
-    // Convert to Eigen matrices
-    colour_wf = Eigen::Map<Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(rgb_img.data, rgb_img.rows, rgb_img.cols);
-    depth_wf = Eigen::Map<Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(depth_img.data, depth_img.rows, depth_img.cols);
+    // Ensure depth image has the correct type
+    if (depth_img.type() != CV_16UC1)
+    {
+        std::cerr << "Depth image must be of type CV_16UC1." << std::endl;
+        return false;
+    }
+
+    // Map cv::Mat data to Eigen matrices and convert to float
+    Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> colour_wf_temp =
+        Eigen::Map<Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(rgb_img.data, rgb_img.rows, rgb_img.cols);
+    colour_wf = colour_wf_temp.cast<float>();
+
+    Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> depth_wf_temp =
+        Eigen::Map<Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+            reinterpret_cast<unsigned short *>(depth_img.data), depth_img.rows, depth_img.cols);
+    depth_wf = depth_wf_temp.cast<float>();
 
     return true;
 }

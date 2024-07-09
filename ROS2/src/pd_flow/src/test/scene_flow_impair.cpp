@@ -81,10 +81,10 @@ void PD_flow_opencv::createImagePyramidGPU()
 {
     //Copy new frames to the scene flow object
     csf_host.copyNewFrames(I, Z);
-
+	cout << "Creating image pyramid" << endl;
     //Copy scene flow object to device
     csf_device = ObjectToDevice(&csf_host);
-
+	cout << "Pasoando a gpu" << endl;
     unsigned int pyr_levels = static_cast<unsigned int>(log2(float(width/cols))) + ctf_levels;
     GaussianPyramidBridge(csf_device, pyr_levels, cam_mode);
 
@@ -307,7 +307,6 @@ cv::Mat PD_flow_opencv::createImage() const
 
 	return sf_image;
 }
-
 
 /**
  * Save results without displaying them

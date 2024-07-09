@@ -25,14 +25,15 @@
 #include "pdflow_cudalib.h"
 #include <stdio.h>
 #include <string.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 inline int stoi(char *c) { return int(std::strtol(c, NULL, 10)); }
 
 using namespace std;
 using Eigen::MatrixXf;
 
-
- //Para astra: height: 480, width: 640
+// Para astra: height: 480, width: 640
 
 class PD_flow_fun
 {
@@ -79,14 +80,12 @@ public:
     // Methods
     void createImagePyramidGPU(MatrixXf colour_wf, MatrixXf depth_wf);
     void solveSceneFlowGPU();
-    bool OpenCamera();
-    void CloseCamera();
-    void CaptureFrame();
     void freeGPUMemory();
     void initializeCUDA();
-    void initializeScene();
-    void updateScene();
-    void initializePDFlow();
+    cv::Mat createImage() const;
+    void showAndSaveResults();
+
+    // void initializePDFlow();
 
     PD_flow_fun(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };
