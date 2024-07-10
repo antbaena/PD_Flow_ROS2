@@ -116,7 +116,6 @@ PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned
 
 void PD_flow::createImagePyramidGPU()
 {
-
     // Copy new frames to the scene flow object
     csf_host.copyNewFrames(colour_wf.data(), depth_wf.data());
 
@@ -128,64 +127,6 @@ void PD_flow::createImagePyramidGPU()
 
     // Copy scene flow object back to host
     BridgeBack(&csf_host, csf_device);
-}
-
-void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
-{
-    // Verifica que las imágenes no estén vacías
-    if (rgb_image.empty() || depth_image.empty())
-    {
-        throw std::invalid_argument("Las imágenes no deben estar vacías.");
-    }
-
-    // Convierte la imagen RGB de cv::Mat a Eigen::MatrixXf
-
-    for (int i = 0; i < rgb_image.rows; ++i)
-    {
-        for (int j = 0; j < rgb_image.cols; ++j)
-        {
-            // Supongamos que quieres tomar solo el canal rojo de la imagen RGB
-            colour_wf(i, j) = static_cast<float>(rgb_image.at<cv::Vec3b>(i, j)[2]); // Canal rojo
-        }
-    }
-
-    // Convierte la imagen de profundidad de cv::Mat a Eigen::MatrixXf
-
-    for (int i = 0; i < depth_image.rows; ++i)
-    {
-        for (int j = 0; j < depth_image.cols; ++j)
-        {
-            depth_wf(i, j) = static_cast<float>(depth_image.at<uchar>(i, j));
-        }
-    }
-}
-
-void PD_flow::process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image)
-{
-
-    // Convert the RGB image to grayscale
-    cv::Mat gray_image;
-    cv::cvtColor(rgb_image, gray_image, cv::COLOR_BGR2GRAY);
-
-    // Ensure the gray_image is of type CV_32FC1 (float, 1 channel)
-    if (gray_image.type() != CV_32FC1)
-    {
-        gray_image.convertTo(gray_image, CV_32FC1);
-    }
-
-    // Ensure the depth_image is of type CV_32FC1 (float, 1 channel)
-    if (depth_image.type() != CV_32FC1)
-    {
-        depth_image.convertTo(depth_image, CV_32FC1);
-    }
-
-    // Convert the grayscale image to Eigen matrix
-    cv::cv2eigen(gray_image, colour_wf);
-
-    // Convert the depth image to Eigen matrix
-    cv::cv2eigen(depth_image, depth_wf);
-
-    // Now you can use colour_wf and depth_wf as Eigen matrices
 }
 
 void PD_flow::solveSceneFlowGPU()
@@ -265,39 +206,60 @@ void PD_flow::solveSceneFlowGPU()
     }
 }
 
-bool PD_flow::GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img)
+void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
 {
-    if (rgb_img.empty() || depth_img.empty())
+    // Verifica que las imágenes no estén vacías
+    if (rgb_image.empty() || depth_image.empty())
     {
-        std::cerr << "Invalid input images." << std::endl;
-        return false;
+        throw std::invalid_argument("Las imágenes no deben estar vacías.");
     }
 
-    // Resize images
-    cv::resize(rgb_img, rgb_img, cv::Size(640 / cam_mode, 480 / cam_mode));
-    cv::resize(depth_img, depth_img, cv::Size(640 / cam_mode, 480 / cam_mode));
+    // Convierte la imagen RGB de cv::Mat a Eigen::MatrixXf
 
-    // Convert RGB image to grayscale
-    cv::cvtColor(rgb_img, rgb_img, cv::COLOR_BGR2GRAY);
-
-    // Ensure depth image has the correct type
-    if (depth_img.type() != CV_16UC1)
+    for (int i = 0; i < rgb_image.rows; ++i)
     {
-        std::cerr << "Depth image must be of type CV_16UC1." << std::endl;
-        return false;
+        for (int j = 0; j < rgb_image.cols; ++j)
+        {
+            // Supongamos que quieres tomar solo el canal rojo de la imagen RGB
+            colour_wf(i, j) = static_cast<float>(rgb_image.at<cv::Vec3b>(i, j)[2]); // Canal rojo
+        }
     }
 
-    // Map cv::Mat data to Eigen matrices and convert to float
-    Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> colour_wf_temp =
-        Eigen::Map<Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(rgb_img.data, rgb_img.rows, rgb_img.cols);
-    colour_wf = colour_wf_temp.cast<float>();
+    // Convierte la imagen de profundidad de cv::Mat a Eigen::MatrixXf
 
-    Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> depth_wf_temp =
-        Eigen::Map<Eigen::Matrix<unsigned short, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-            reinterpret_cast<unsigned short *>(depth_img.data), depth_img.rows, depth_img.cols);
-    depth_wf = depth_wf_temp.cast<float>();
+    for (int i = 0; i < depth_image.rows; ++i)
+    {
+        for (int j = 0; j < depth_image.cols; ++j)
+        {
+            depth_wf(i, j) = static_cast<float>(depth_image.at<uchar>(i, j));
+        }
+    }
+}
 
-    return true;
+void PD_flow::process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image)
+{
+
+    // Convert the RGB image to grayscale
+    cv::Mat gray_image;
+    cv::cvtColor(rgb_image, gray_image, cv::COLOR_BGR2GRAY);
+
+    // Ensure the gray_image is of type CV_32FC1 (float, 1 channel)
+    if (gray_image.type() != CV_32FC1)
+    {
+        gray_image.convertTo(gray_image, CV_32FC1);
+    }
+
+    // Ensure the depth_image is of type CV_32FC1 (float, 1 channel)
+    if (depth_image.type() != CV_32FC1)
+    {
+        depth_image.convertTo(depth_image, CV_32FC1);
+    }
+
+    // Convert the grayscale image to Eigen matrix
+    cv::cv2eigen(gray_image, colour_wf);
+
+    // Convert the depth image to Eigen matrix
+    cv::cv2eigen(depth_image, depth_wf);
 }
 
 void PD_flow::initializeCUDA()
@@ -327,14 +289,12 @@ void PD_flow::updateScene()
     cv::Mat depth_image(rows, cols, CV_8UC1);
 
     const unsigned int repr_level = round(log2(colour_wf.cols() / cols));
-
     for (unsigned int v = 0; v < rows; v++)
     {
         for (unsigned int u = 0; u < cols; u++)
         {
             // Obtener la profundidad y los desplazamientos de cada punto
             float depth_value = depth[repr_level](v, u);
-            // cout << "Depth value of pixel (" << u << ", " << v << "): " << depth_value << endl;
             if (depth_value > 0.1f)
             {
                 // Escalar los valores de desplazamiento para visualizarlos mejor
@@ -378,10 +338,6 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
     const Eigen::MatrixXf &xx_current = xx[repr_level];
     const Eigen::MatrixXf &yy_current = yy[repr_level];
 
-    const Eigen::MatrixXf dx_current = dx[repr_level];
-    const Eigen::MatrixXf dy_current = dy[repr_level];
-    const Eigen::MatrixXf dz_current = dz[repr_level];
-
     // Prepare the point cloud
     points.clear();
     vectors.clear();
@@ -392,8 +348,12 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
             float depth_value = depth_current(v, u);
             if (depth_value > 0.1f)
             {
-                points.emplace_back(depth_current(v, u), xx_current(v, u), yy_current(v, u));
-                vectors.emplace_back(dx_current(v, u), dy_current(v, u), dz_current(v, u));
+                 float dx_scaled = dx[repr_level](v, u);
+                float dy_scaled = dy[repr_level](v, u);
+                float dz_scaled = dz[repr_level](v, u);
+
+                points.emplace_back( xx_current(v, u), yy_current(v, u), depth_current(v, u) );
+                vectors.emplace_back(dx_scaled, dy_scaled, dz_scaled);
             }
         }
     }

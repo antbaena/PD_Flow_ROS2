@@ -34,7 +34,6 @@
 #include <chrono>
 #include <thread>
 #include <opencv2/core/types.hpp>
-
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -105,7 +104,6 @@ public:
     void initializePDFlow();
     void process_frame(cv::Mat &rgb_image, cv::Mat &depth_image);
     void process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image);
-    bool GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img);
     void processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors);
     visualization_msgs::msg::MarkerArray createVectorField(const builtin_interfaces::msg::Time &current_time);
     sensor_msgs::msg::PointCloud2 createPointCloud();

@@ -55,12 +55,12 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
             pd_flow_.initializePDFlow();
-            pd_flow_.process_frame2(rgb_image_, depth_image_);
+            pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
         }
         else if (cont == 1)
         {
-            pd_flow_.process_frame2(rgb_image_, depth_image_);
+            pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
         }
@@ -68,17 +68,16 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
             // Pasar las imágenes a PD_flow
-            pd_flow_.process_frame2(rgb_image_, depth_image_);
-            RCLCPP_INFO(this->get_logger(), "Comenza a calcular flujo óptico...");
+            pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
-            RCLCPP_INFO(this->get_logger(), "Piramide calculada con exito");
             pd_flow_.solveSceneFlowGPU();
-            RCLCPP_INFO(this->get_logger(), "Flujo óptico calculado con exito");
+            RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
+            
             // Publicar los resultados
             pd_flow_.updateScene();
             publish_point_cloud();
-            //publish_motion_field();
+            // publish_motion_field();
         }
         cont++;
         // Reiniciar las imágenes después de procesarlas
@@ -116,6 +115,7 @@ private:
 
         point_cloud_publisher_->publish(point_cloud_msg);
     }
+
     void publish_motion_field()
     {
         std::vector<cv::Point3f> points;
