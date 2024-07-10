@@ -11,6 +11,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(pd_flow_msgs REQUIRED)
@@ -44,6 +45,13 @@ ament_target_dependencies(image_viewer
   pd_flow_msgs
 )
 
+add_executable(VectorFieldPublisher src/VectorFieldPublisher.cpp)
+ament_target_dependencies(VectorFieldPublisher
+  rclcpp
+  visualization_msgs
+)
+
+
 # Configuración de CUDA
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_61,code=sm_61")
 
@@ -62,6 +70,7 @@ ament_target_dependencies(pd_flow
   OpenCV
   pd_flow_msgs
   Eigen3
+  visualization_msgs
 )
 
 target_link_libraries(pd_flow
@@ -73,6 +82,7 @@ target_link_libraries(pd_flow
 # Instalación de ejecutables
 install(TARGETS
 pd_flow
+VectorFieldPublisher
   image_combiner
   image_viewer
   DESTINATION lib/${PROJECT_NAME}

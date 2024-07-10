@@ -27,7 +27,7 @@ public:
             "/combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
 
         point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("point_cloud", 10);
-        
+        vector_field_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("vector_field", 10);
 
         flow_pub_ = this->create_publisher<pd_flow_msgs::msg::FlowField>("flow_field", 10);
     }
@@ -40,7 +40,6 @@ private:
             // Convertir el mensaje de ROS a imágenes OpenCV
             rgb_image_ = cv_bridge::toCvCopy(msg->rgb_image, sensor_msgs::image_encodings::RGB8)->image;
             depth_image_ = cv_bridge::toCvCopy(msg->depth_image, sensor_msgs::image_encodings::TYPE_16UC1)->image;
-            
         }
         catch (cv_bridge::Exception &e)
         {
@@ -56,12 +55,12 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
             pd_flow_.initializePDFlow();
-            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.process_frame2(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
         }
         else if (cont == 1)
         {
-            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.process_frame2(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
         }
@@ -69,7 +68,7 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
             // Pasar las imágenes a PD_flow
-            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.process_frame2(rgb_image_, depth_image_);
             RCLCPP_INFO(this->get_logger(), "Comenza a calcular flujo óptico...");
             pd_flow_.createImagePyramidGPU();
             RCLCPP_INFO(this->get_logger(), "Piramide calculada con exito");
@@ -78,40 +77,71 @@ private:
 
             // Publicar los resultados
             pd_flow_.updateScene();
-
-            std::vector<cv::Point3f> points;
-            std::vector<cv::Point3f> vectors;
-
-            pd_flow_.processPointCloud(points, vectors);
-
-            sensor_msgs::msg::PointCloud2 point_cloud_msg;
-            point_cloud_msg.header.frame_id = "map";
-            point_cloud_msg.header.stamp = this->now();
-            point_cloud_msg.height = 1;
-            point_cloud_msg.width = points.size();
-            point_cloud_msg.is_dense = false;
-            point_cloud_msg.is_bigendian = false;
-
-            sensor_msgs::PointCloud2Modifier modifier(point_cloud_msg);
-            modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
-
-            sensor_msgs::PointCloud2Iterator<float> iter_x(point_cloud_msg, "x");
-            sensor_msgs::PointCloud2Iterator<float> iter_y(point_cloud_msg, "y");
-            sensor_msgs::PointCloud2Iterator<float> iter_z(point_cloud_msg, "z");
-
-            for (size_t i = 0; i < points.size(); ++i, ++iter_x, ++iter_y, ++iter_z)
-            {
-                *iter_x = points[i].x;
-                *iter_y = points[i].y;
-                *iter_z = points[i].z;
-            }
-
-            point_cloud_publisher_->publish(point_cloud_msg);
+            publish_point_cloud();
+            //publish_motion_field();
         }
         cont++;
         // Reiniciar las imágenes después de procesarlas
         rgb_image_ = cv::Mat();
         depth_image_ = cv::Mat();
+    }
+    void publish_point_cloud()
+    {
+        std::vector<cv::Point3f> points;
+        std::vector<cv::Point3f> vectors;
+
+        pd_flow_.processPointCloud(points, vectors);
+
+        sensor_msgs::msg::PointCloud2 point_cloud_msg;
+        point_cloud_msg.header.frame_id = "map";
+        point_cloud_msg.header.stamp = this->now();
+        point_cloud_msg.height = 1;
+        point_cloud_msg.width = points.size();
+        point_cloud_msg.is_dense = false;
+        point_cloud_msg.is_bigendian = false;
+
+        sensor_msgs::PointCloud2Modifier modifier(point_cloud_msg);
+        modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+
+        sensor_msgs::PointCloud2Iterator<float> iter_x(point_cloud_msg, "x");
+        sensor_msgs::PointCloud2Iterator<float> iter_y(point_cloud_msg, "y");
+        sensor_msgs::PointCloud2Iterator<float> iter_z(point_cloud_msg, "z");
+
+        for (size_t i = 0; i < points.size(); ++i, ++iter_x, ++iter_y, ++iter_z)
+        {
+            *iter_x = points[i].x;
+            *iter_y = points[i].y;
+            *iter_z = points[i].z;
+        }
+
+        point_cloud_publisher_->publish(point_cloud_msg);
+    }
+    void publish_motion_field()
+    {
+        std::vector<cv::Point3f> points;
+        std::vector<cv::Point3f> vectors;
+
+        pd_flow_.processPointCloud(points, vectors);
+        visualization_msgs::msg::MarkerArray marker_array;
+        int id = 0;
+        for (size_t i = 0; i < vectors.size(); ++i)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header.frame_id = "map";
+            marker.header.stamp = this->now();
+            marker.ns = "vector_field";
+            marker.id = id++;
+            marker.type = visualization_msgs::msg::Marker::ARROW;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+
+            marker.pose.position.x = vectors[i].x;
+            marker.pose.position.y = vectors[i].y;
+            marker.pose.position.z = vectors[i].z;
+
+            marker_array.markers.push_back(marker);
+        }
+
+        vector_field_publisher_->publish(marker_array);
     }
 
     void publish_flow_field()
@@ -183,6 +213,8 @@ private:
     rclcpp::Subscription<pd_flow_msgs::msg::CombinedImage>::SharedPtr subscription_;
     rclcpp::Publisher<pd_flow_msgs::msg::FlowField>::SharedPtr flow_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr vector_field_publisher_;
+
     PD_flow pd_flow_;
     cv::Mat rgb_image_;
     cv::Mat depth_image_;

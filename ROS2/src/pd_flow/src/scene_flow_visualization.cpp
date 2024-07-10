@@ -338,8 +338,8 @@ void PD_flow::updateScene()
             if (depth_value > 0.1f)
             {
                 // Escalar los valores de desplazamiento para visualizarlos mejor
-                float dx_scaled = dx[repr_level](v, u) ;
-                float dy_scaled = dy[repr_level](v, u) ;
+                float dx_scaled = dx[repr_level](v, u);
+                float dy_scaled = dy[repr_level](v, u);
 
                 // Dibujar la línea que representa el vector de movimiento
                 cv::Point2f start_point(u, v);
@@ -349,10 +349,10 @@ void PD_flow::updateScene()
                 cv::arrowedLine(motion_field, start_point, end_point, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
 
                 // Convertir valores de color y profundidad a formatos adecuados para visualización
-                color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
-
-                depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
             }
+            color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
+
+            depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
         }
     }
 
@@ -378,6 +378,10 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
     const Eigen::MatrixXf &xx_current = xx[repr_level];
     const Eigen::MatrixXf &yy_current = yy[repr_level];
 
+    const Eigen::MatrixXf dx_current = dx[repr_level];
+    const Eigen::MatrixXf dy_current = dy[repr_level];
+    const Eigen::MatrixXf dz_current = dz[repr_level];
+
     // Prepare the point cloud
     points.clear();
     vectors.clear();
@@ -388,13 +392,102 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
             float depth_value = depth_current(v, u);
             if (depth_value > 0.1f)
             {
-                float dx_scaled = dx[repr_level](v, u);
-                float dy_scaled = dy[repr_level](v, u);
-                float dz_scaled = dz[repr_level](v, u);
-
-                points.emplace_back(depth_current(v, u), xx_current(v, u), yy_current(v, u) );
-                vectors.emplace_back(dx_scaled, dy_scaled, dz_scaled);
+                points.emplace_back(depth_current(v, u), xx_current(v, u), yy_current(v, u));
+                vectors.emplace_back(dx_current(v, u), dy_current(v, u), dz_current(v, u));
             }
         }
     }
+}
+
+sensor_msgs::msg::PointCloud2 PD_flow::createPointCloud()
+{
+    auto pointcloud_msg = sensor_msgs::msg::PointCloud2();
+
+    sensor_msgs::PointCloud2Modifier modifier(pointcloud_msg);
+    modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+    modifier.resize(rows * cols);
+
+    sensor_msgs::PointCloud2Iterator<float> iter_x(pointcloud_msg, "x");
+    sensor_msgs::PointCloud2Iterator<float> iter_y(pointcloud_msg, "y");
+    sensor_msgs::PointCloud2Iterator<float> iter_z(pointcloud_msg, "z");
+
+    // Calcular el nivel de representación
+    const unsigned int repr_level = std::round(std::log2(colour_wf.cols() / cols));
+
+    // Asegurar que las matrices de profundidad están indexadas correctamente
+    const Eigen::MatrixXf &depth_current = depth[repr_level];
+    const Eigen::MatrixXf &xx_current = xx[repr_level];
+    const Eigen::MatrixXf &yy_current = yy[repr_level];
+
+    for (int v = 0; v < rows; ++v)
+    {
+        for (int u = 0; u < cols; ++u, ++iter_x, ++iter_y, ++iter_z)
+        {
+            *iter_x = depth_current(v, u);
+            *iter_y = xx_current(v, u);
+            *iter_z = yy_current(v, u);
+        }
+    }
+
+    return pointcloud_msg;
+}
+
+visualization_msgs::msg::MarkerArray PD_flow::createVectorField(const builtin_interfaces::msg::Time &current_time)
+{
+    // Placeholder data - replace with your actual data
+    visualization_msgs::msg::MarkerArray marker_array;
+    int id = 0;
+
+    // Calcular el nivel de representación
+    const unsigned int repr_level = std::round(std::log2(colour_wf.cols() / cols));
+
+    // Asegurar que las matrices de profundidad están indexadas correctamente
+    const Eigen::MatrixXf &depth_current = depth[repr_level];
+    const Eigen::MatrixXf &xx_current = xx[repr_level];
+    const Eigen::MatrixXf &yy_current = yy[repr_level];
+    const Eigen::MatrixXf &dx_current = dx[repr_level];
+    const Eigen::MatrixXf &dy_current = dy[repr_level];
+    const Eigen::MatrixXf &dz_current = dz[repr_level];
+
+    for (int v = 0; v < rows; ++v)
+    {
+        for (int u = 0; u < cols; ++u)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header.frame_id = "map";
+            marker.header.stamp = current_time;
+            marker.ns = "vector_field";
+            marker.id = id++;
+            marker.type = visualization_msgs::msg::Marker::ARROW;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+
+            marker.pose.position.x = depth_current(v, u);
+            marker.pose.position.y = xx_current(v, u);
+            marker.pose.position.z = yy_current(v, u);
+
+            tf2::Quaternion quat;
+            float angle = atan2(dy_current(v, u), dx_current(v, u));
+            quat.setRPY(0.0, 0.0, angle);
+            marker.pose.orientation.x = quat.x();
+            marker.pose.orientation.y = quat.y();
+            marker.pose.orientation.z = quat.z();
+            marker.pose.orientation.w = quat.w();
+
+            float length = sqrt(dx_current(v, u) * dx_current(v, u) +
+                                dy_current(v, u) * dy_current(v, u) +
+                                dz_current(v, u) * dz_current(v, u));
+            marker.scale.x = length;
+            marker.scale.y = 0.1;
+            marker.scale.z = 0.1;
+
+            marker.color.r = 1.0;
+            marker.color.g = 0.0;
+            marker.color.b = 0.0;
+            marker.color.a = 1.0;
+
+            marker_array.markers.push_back(marker);
+        }
+    }
+
+    return marker_array;
 }

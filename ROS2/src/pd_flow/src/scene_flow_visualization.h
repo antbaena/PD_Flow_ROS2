@@ -33,6 +33,12 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <opencv2/core/types.hpp>
+
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <tf2/LinearMath/Quaternion.h>
 
 inline int stoi(char *c) { return int(std::strtol(c, NULL, 10)); }
 
@@ -101,6 +107,9 @@ public:
     void process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image);
     bool GetFromRGBDImages(cv::Mat &rgb_img, cv::Mat &depth_img);
     void processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors);
+    visualization_msgs::msg::MarkerArray createVectorField(const builtin_interfaces::msg::Time &current_time);
+    sensor_msgs::msg::PointCloud2 createPointCloud();
+
 
     PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config);
 };
