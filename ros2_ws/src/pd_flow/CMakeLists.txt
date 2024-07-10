@@ -17,6 +17,7 @@ find_package(OpenCV  REQUIRED)
 find_package(pd_flow_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(tf2 REQUIRED)
 
 # Definir los directorios de inclusión
 include_directories(
@@ -24,6 +25,7 @@ include_directories(
   ${cv_bridge_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${CUDA_INCLUDE_DIRS}
+  ${tf2_INCLUDE_DIRS}
 )
 
 # Definir los ejecutables y sus dependencias
