@@ -341,9 +341,9 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
     // Prepare the point cloud
     points.clear();
     vectors.clear();
-    for (int v = 0; v < rows; ++v)
+    for (unsigned int v = 0; v < rows; ++v)
     {
-        for (int u = 0; u < cols; ++u)
+        for (unsigned int u = 0; u < cols; ++u)
         {
             float depth_value = depth_current(v, u);
             if (depth_value > 0.1f)
@@ -379,9 +379,9 @@ sensor_msgs::msg::PointCloud2 PD_flow::createPointCloud()
     const Eigen::MatrixXf &xx_current = xx[repr_level];
     const Eigen::MatrixXf &yy_current = yy[repr_level];
 
-    for (int v = 0; v < rows; ++v)
+    for (unsigned int v = 0; v < rows; ++v)
     {
-        for (int u = 0; u < cols; ++u, ++iter_x, ++iter_y, ++iter_z)
+        for (unsigned int u = 0; u < cols; ++u, ++iter_x, ++iter_y, ++iter_z)
         {
             *iter_x = depth_current(v, u);
             *iter_y = xx_current(v, u);
@@ -409,9 +409,9 @@ visualization_msgs::msg::MarkerArray PD_flow::createVectorField(const builtin_in
     const Eigen::MatrixXf &dy_current = dy[repr_level];
     const Eigen::MatrixXf &dz_current = dz[repr_level];
 
-    for (int v = 0; v < rows; ++v)
+    for (unsigned int v = 0; v < rows; ++v)
     {
-        for (int u = 0; u < cols; ++u)
+        for (unsigned int u = 0; u < cols; ++u)
         {
             visualization_msgs::msg::Marker marker;
             marker.header.frame_id = "map";

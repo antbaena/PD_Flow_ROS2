@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "pdflow_cudalib.h"
-#include "legend_pdflow.xpm"
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <iostream>

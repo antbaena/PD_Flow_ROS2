@@ -66,12 +66,12 @@ private:
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
+            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
             // Pasar las imágenes a PD_flow
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
-            RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
+            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
             
             // Publicar los resultados
