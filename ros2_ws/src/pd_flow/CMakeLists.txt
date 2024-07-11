@@ -53,9 +53,17 @@ ament_target_dependencies(VectorFieldPublisher
   visualization_msgs
 )
 
+# Encuentra el paquete CUDA Toolkit
+find_package(CUDAToolkit REQUIRED)
 
-# Configuración de CUDA
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_61,code=sm_61")
+# Detecta las arquitecturas disponibles y configura las banderas de NVCC
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set_property(GLOBAL PROPERTY CUDA_ARCHITECTURES OFF)
+    set_property(GLOBAL PROPERTY CUDA_ARCHITECTURES 60 61 75 86)
+endif()
 
 cuda_add_executable(pd_flow
   src/pd_flow_node.cpp
