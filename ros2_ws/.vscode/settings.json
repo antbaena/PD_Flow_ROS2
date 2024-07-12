@@ -1,3 +1,15 @@
 {
-    "ros.distro": "humble"
+    "ros.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/eulogioqt/Documents/GitHub/PD_Flow_ROS2/ros2_ws/install/pd_flow_msgs/local/lib/python3.10/dist-packages",
+        "/home/eulogioqt/Documents/GitHub/PD_Flow_ROS2/ros2_ws/install/astra_camera_msgs/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/eulogioqt/Documents/GitHub/PD_Flow_ROS2/ros2_ws/install/pd_flow_msgs/local/lib/python3.10/dist-packages",
+        "/home/eulogioqt/Documents/GitHub/PD_Flow_ROS2/ros2_ws/install/astra_camera_msgs/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
 }
