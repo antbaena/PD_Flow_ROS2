@@ -4,8 +4,8 @@
 #include <cv_bridge/cv_bridge.h>
 #include "scene_flow_visualization.h" // Incluye el archivo .h proporcionado
 #include <pd_flow_msgs/msg/combined_image.hpp>
-#include <pd_flow_msgs/msg/flow_field.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pd_flow_msgs/msg/flow_field.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
@@ -69,12 +69,6 @@ private:
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
         }
-        // else if (cont == 1) // Este if no es necesario
-        //{
-        //     pd_flow_.process_frame(rgb_image_, depth_image_);
-        //     pd_flow_.createImagePyramidGPU();
-        //     pd_flow_.solveSceneFlowGPU();
-        // }
         else
         {
             // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
@@ -87,7 +81,8 @@ private:
             // Publicar los resultados
             pd_flow_.updateScene();
             // publish_point_cloud();
-            publish_motion_field();
+            // publish_motion_field();
+            publish_flow_field();
         }
         cont++;
         // Reiniciar las imágenes después de procesarlas
@@ -157,50 +152,12 @@ private:
 
     void publish_flow_field()
     {
-        std::vector<cv::Point3f> points;
-        std::vector<cv::Point3f> vectors;
 
-        pd_flow_.processPointCloud(points, vectors);
+        pd_flow_msgs::msg::FlowField msg = pd_flow_.convertToFlowFieldMsg();
 
-        auto msg = pd_flow_msgs::msg::FlowField();
         msg.header.stamp = this->get_clock()->now();
         msg.header.frame_id = "camera_frame";
-
-        // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
-        if (initial_combined_image)
-        {
-            msg.image = *initial_combined_image;
-        }
-
-        // Aplanar las matrices de movimiento y copiar los datos
-        size_t num_elements = pd_flow_.dx[0].size();
-        msg.dx.resize(num_elements);
-        msg.dy.resize(num_elements);
-        msg.dz.resize(num_elements);
-
-        // Variables para la suma total de dx, dy, dz
-        float sum_dx = 0.0f;
-        float sum_dy = 0.0f;
-        float sum_dz = 0.0f;
-
-        for (size_t i = 0; i < num_elements; ++i)
-        {
-            msg.dx[i] = pd_flow_.dx[0](i);
-            msg.dy[i] = pd_flow_.dy[0](i);
-            msg.dz[i] = pd_flow_.dz[0](i);
-
-            // Acumulando la suma de dx, dy, dz
-            sum_dx += msg.dx[i];
-            sum_dy += msg.dy[i];
-            sum_dz += msg.dz[i];
-        }
-
-        // Determinar si todos los vectores son nulos
-        bool all_zero = (sum_dx == 0.0f && sum_dy == 0.0f && sum_dz == 0.0f);
-
-        std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos"
-                  << (all_zero ? " - Todos los vectores son 0" : " - Vectores no nulos") << std::endl;
-
+        std::cout << "Publicando flujo óptico..." << std::endl;
         flow_pub_->publish(msg);
 
         // Crear imagen OpenCV del flujo óptico
@@ -211,6 +168,66 @@ private:
         cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
     }
 
+    //     void publish_flow_field()
+    // {
+    //     std::vector<cv::Point3f> points;
+    //     std::vector<cv::Point3f> vectors;
+
+    //     pd_flow_.processPointCloud(points, vectors);
+
+    //     auto msg = pd_flow_msgs::msg::FlowField();
+    //     msg.header.stamp = this->get_clock()->now();
+    //     msg.header.frame_id = "camera_frame";
+
+    //     // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
+    //     if (initial_combined_image)
+    //     {
+    //         msg.image = *initial_combined_image;
+    //     }
+
+    //     // Aplanar las matrices de movimiento y copiar los datos
+    //     size_t num_elements = pd_flow_.dx[0].size();
+    //     msg.dx.resize(num_elements);
+    //     msg.dy.resize(num_elements);
+    //     msg.dz.resize(num_elements);
+
+    //     // Variables para la suma total de dx, dy, dz
+    //     float sum_dx = 0.0f;
+    //     float sum_dy = 0.0f;
+    //     float sum_dz = 0.0f;
+
+    //     for (size_t i = 0; i < num_elements; ++i)
+    //     {
+    //         msg.dx[i] = pd_flow_.dx[0](i);
+    //         msg.dy[i] = pd_flow_.dy[0](i);
+    //         msg.dz[i] = pd_flow_.dz[0](i);
+
+    //         // Acumulando la suma de dx, dy, dz
+    //         sum_dx += msg.dx[i];
+    //         sum_dy += msg.dy[i];
+    //         sum_dz += msg.dz[i];
+    //     }
+
+    //     // Determinar si todos los vectores son nulos
+    //     bool all_zero = (sum_dx == 0.0f && sum_dy == 0.0f && sum_dz == 0.0f);
+
+    //     std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos"
+    //               << (all_zero ? " - Todos los vectores son 0" : " - Vectores no nulos") << std::endl;
+
+    //     pd_flow_msgs::msg::FlowField  msg = pd_flow_.convertToMotionFieldMsg();
+
+    //     msg.header.stamp = this->get_clock()->now();
+    //     msg.header.frame_id = "camera_frame";
+    //     std::cout << "Publicando flujo óptico..."<< std::endl;
+    //     flow_pub_->publish(msg);
+
+    //     // Crear imagen OpenCV del flujo óptico
+    //     cv::Mat flow_image = createImage();
+
+    //     // Mostrar imagen con OpenCV
+    //     cv::imshow("Optical Flow", flow_image);
+    //     cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
+    // }
     cv::Mat createImage() const
     {
         // Crear imagen RGB (una color por dirección)

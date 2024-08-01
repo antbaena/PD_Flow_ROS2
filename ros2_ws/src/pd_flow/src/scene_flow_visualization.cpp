@@ -328,6 +328,39 @@ void PD_flow::updateScene()
     cv::waitKey(1); // Espera breve para actualizar las ventanas
 }
 
+pd_flow_msgs::msg::FlowField PD_flow::convertToFlowFieldMsg()
+{
+    // Crear un mensaje MotionField
+    pd_flow_msgs::msg::FlowField msg;
+
+    // Convertir las matrices Eigen a arrays unidimensionales y asignarlos al mensaje
+    for (const auto &matrix : dx)
+    {
+        for (int i = 0; i < matrix.size(); ++i)
+        {
+            msg.dx.push_back(matrix(i));
+        }
+    }
+
+    for (const auto &matrix : dy)
+    {
+        for (int i = 0; i < matrix.size(); ++i)
+        {
+            msg.dy.push_back(matrix(i));
+        }
+    }
+
+    for (const auto &matrix : dz)
+    {
+        for (int i = 0; i < matrix.size(); ++i)
+        {
+            msg.dz.push_back(matrix(i));
+        }
+    }
+
+    return msg;
+}
+
 void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors)
 {
     // Compute the representation level
