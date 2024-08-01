@@ -338,7 +338,7 @@ pd_flow_msgs::msg::FlowField PD_flow::convertToFlowFieldMsg()
     {
         for (int i = 0; i < matrix.size(); ++i)
         {
-            msg.dx.push_back(matrix(i));
+            msg.dx.push_back(matrix(i)+0.1);
         }
     }
 
@@ -346,7 +346,7 @@ pd_flow_msgs::msg::FlowField PD_flow::convertToFlowFieldMsg()
     {
         for (int i = 0; i < matrix.size(); ++i)
         {
-            msg.dy.push_back(matrix(i));
+            msg.dy.push_back(matrix(i)+0.1);
         }
     }
 
@@ -354,7 +354,7 @@ pd_flow_msgs::msg::FlowField PD_flow::convertToFlowFieldMsg()
     {
         for (int i = 0; i < matrix.size(); ++i)
         {
-            msg.dz.push_back(matrix(i));
+            msg.dz.push_back(matrix(i)+0.1);
         }
     }
 

@@ -154,7 +154,15 @@ private:
     {
 
         pd_flow_msgs::msg::FlowField msg = pd_flow_.convertToFlowFieldMsg();
+        msg.header.stamp = this->get_clock()->now();
+        msg.header.frame_id = "camera_frame";
 
+        // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
+        if (initial_combined_image)
+        {
+            msg.image = *initial_combined_image;
+        }
+    
         msg.header.stamp = this->get_clock()->now();
         msg.header.frame_id = "camera_frame";
         std::cout << "Publicando flujo óptico..." << std::endl;
