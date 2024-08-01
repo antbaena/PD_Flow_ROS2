@@ -35,6 +35,7 @@
 #include <opencv2/core/types.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <pd_flow_msgs/msg/flow_field.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 
@@ -104,6 +105,7 @@ public:
     void process_frame(cv::Mat &rgb_image, cv::Mat &depth_image);
     void process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image);
     void processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv::Point3f> &vectors);
+    pd_flow_msgs::msg::FlowField convertToFlowFieldMsg();
     visualization_msgs::msg::MarkerArray createVectorField(const builtin_interfaces::msg::Time &current_time);
     sensor_msgs::msg::PointCloud2 createPointCloud();
 
