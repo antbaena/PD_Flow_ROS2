@@ -10,13 +10,14 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 using namespace std;
+
 const unsigned int rows = 480; // Ajustar según tu imagen
 const unsigned int cols = 640; // Ajustar según tu imagen
 bool initialized = false;
 int cont = 0;
+
 class PDFlowNode : public rclcpp::Node
 {
-
 public:
     PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 480)
     {
@@ -37,6 +38,16 @@ private:
     {
         try
         {
+            if (!final_combined_image)
+            {
+                final_combined_image = msg;
+            }
+            else
+            {
+                initial_combined_image = final_combined_image;
+                final_combined_image = msg;
+            }
+
             // Convertir el mensaje de ROS a imágenes OpenCV
             rgb_image_ = cv_bridge::toCvCopy(msg->rgb_image, sensor_msgs::image_encodings::RGB8)->image;
             depth_image_ = cv_bridge::toCvCopy(msg->depth_image, sensor_msgs::image_encodings::TYPE_16UC1)->image;
@@ -58,12 +69,12 @@ private:
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
         }
-        else if (cont == 1)
-        {
-            pd_flow_.process_frame(rgb_image_, depth_image_);
-            pd_flow_.createImagePyramidGPU();
-            pd_flow_.solveSceneFlowGPU();
-        }
+        // else if (cont == 1) // Este if no es necesario
+        //{
+        //     pd_flow_.process_frame(rgb_image_, depth_image_);
+        //     pd_flow_.createImagePyramidGPU();
+        //     pd_flow_.solveSceneFlowGPU();
+        // }
         else
         {
             // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
@@ -73,17 +84,17 @@ private:
             pd_flow_.solveSceneFlowGPU();
             // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
-            
             // Publicar los resultados
             pd_flow_.updateScene();
-            publish_point_cloud();
-            // publish_motion_field();
+            // publish_point_cloud();
+            publish_motion_field();
         }
         cont++;
         // Reiniciar las imágenes después de procesarlas
         rgb_image_ = cv::Mat();
         depth_image_ = cv::Mat();
     }
+
     void publish_point_cloud()
     {
         std::vector<cv::Point3f> points;
@@ -146,9 +157,20 @@ private:
 
     void publish_flow_field()
     {
+        std::vector<cv::Point3f> points;
+        std::vector<cv::Point3f> vectors;
+
+        pd_flow_.processPointCloud(points, vectors);
+
         auto msg = pd_flow_msgs::msg::FlowField();
         msg.header.stamp = this->get_clock()->now();
         msg.header.frame_id = "camera_frame";
+
+        // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
+        if (initial_combined_image)
+        {
+            msg.image = *initial_combined_image;
+        }
 
         // Aplanar las matrices de movimiento y copiar los datos
         size_t num_elements = pd_flow_.dx[0].size();
@@ -156,14 +178,29 @@ private:
         msg.dy.resize(num_elements);
         msg.dz.resize(num_elements);
 
+        // Variables para la suma total de dx, dy, dz
+        float sum_dx = 0.0f;
+        float sum_dy = 0.0f;
+        float sum_dz = 0.0f;
+
         for (size_t i = 0; i < num_elements; ++i)
         {
             msg.dx[i] = pd_flow_.dx[0](i);
             msg.dy[i] = pd_flow_.dy[0](i);
             msg.dz[i] = pd_flow_.dz[0](i);
+
+            // Acumulando la suma de dx, dy, dz
+            sum_dx += msg.dx[i];
+            sum_dy += msg.dy[i];
+            sum_dz += msg.dz[i];
         }
 
-        std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos" << std::endl;
+        // Determinar si todos los vectores son nulos
+        bool all_zero = (sum_dx == 0.0f && sum_dy == 0.0f && sum_dz == 0.0f);
+
+        std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos"
+                  << (all_zero ? " - Todos los vectores son 0" : " - Vectores no nulos") << std::endl;
+
         flow_pub_->publish(msg);
 
         // Crear imagen OpenCV del flujo óptico
@@ -181,9 +218,9 @@ private:
 
         // Calcular los valores máximos del flujo (de sus componentes)
         float maxmodx = 0.f, maxmody = 0.f, maxmodz = 0.f;
-        for (unsigned int v = 0; v < rows; v++)
+        for (unsigned int v = 0; v < rows; ++v)
         {
-            for (unsigned int u = 0; u < cols; u++)
+            for (unsigned int u = 0; u < cols; ++u)
             {
                 size_t index = v + u * rows;
                 if (fabs(pd_flow_.dx[0](index)) > maxmodx)
@@ -196,9 +233,9 @@ private:
         }
 
         // Crear una representación RGB del flujo óptico
-        for (unsigned int v = 0; v < rows; v++)
+        for (unsigned int v = 0; v < rows; ++v)
         {
-            for (unsigned int u = 0; u < cols; u++)
+            for (unsigned int u = 0; u < cols; ++u)
             {
                 size_t index = v + u * rows;
                 sf_image.at<cv::Vec3b>(v, u)[0] = static_cast<unsigned char>(255.f * fabs(pd_flow_.dx[0](index)) / maxmodx); // Azul - x
@@ -218,6 +255,9 @@ private:
     PD_flow pd_flow_;
     cv::Mat rgb_image_;
     cv::Mat depth_image_;
+
+    pd_flow_msgs::msg::CombinedImage::SharedPtr initial_combined_image;
+    pd_flow_msgs::msg::CombinedImage::SharedPtr final_combined_image;
 };
 
 int main(int argc, char *argv[])

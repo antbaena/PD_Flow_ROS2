@@ -348,11 +348,11 @@ void PD_flow::processPointCloud(std::vector<cv::Point3f> &points, std::vector<cv
             float depth_value = depth_current(v, u);
             if (depth_value > 0.1f)
             {
-                 float dx_scaled = dx[repr_level](v, u);
+                float dx_scaled = dx[repr_level](v, u);
                 float dy_scaled = dy[repr_level](v, u);
                 float dz_scaled = dz[repr_level](v, u);
 
-                points.emplace_back( xx_current(v, u), yy_current(v, u), depth_current(v, u) );
+                points.emplace_back(xx_current(v, u), yy_current(v, u), depth_current(v, u));
                 vectors.emplace_back(dx_scaled, dy_scaled, dz_scaled);
             }
         }
