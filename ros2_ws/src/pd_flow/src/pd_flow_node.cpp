@@ -163,8 +163,6 @@ private:
             msg.image = *initial_combined_image;
         }
     
-        msg.header.stamp = this->get_clock()->now();
-        msg.header.frame_id = "camera_frame";
         std::cout << "Publicando flujo óptico..." << std::endl;
         flow_pub_->publish(msg);
 
