@@ -54,8 +54,11 @@ ament_target_dependencies(VectorFieldPublisher
 )
 
 
-# Configuración de CUDA
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_61,code=sm_61")
+# Configuración de CUDA --Ant
+# set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_61,code=sm_61")
+# Configuración de CUDA --Edge
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_86,code=sm_86")
+
 
 cuda_add_executable(pd_flow
   src/pd_flow_node.cpp
