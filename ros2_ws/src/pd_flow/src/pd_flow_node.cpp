@@ -82,6 +82,7 @@ private:
             pd_flow_.solveSceneFlowGPU();
 
             // Publicar el campo de flujo
+            pd_flow_.updateScene();
             publish_flow_field();
             auto now = std::chrono::steady_clock::now();
             if (now - last_log_time_ >= log_interval_)
