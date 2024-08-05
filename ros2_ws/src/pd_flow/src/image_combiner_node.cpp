@@ -4,12 +4,17 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/mat.hpp>
 #include <pd_flow_msgs/msg/combined_image.hpp>
+#include <chrono>
 
 class ImageCombiner : public rclcpp::Node
 {
 public:
-  ImageCombiner() : Node("image_combiner")
+  ImageCombiner() : Node("image_combiner"),
+                    last_log_time_(std::chrono::steady_clock::now()),
+                    log_interval_(std::chrono::seconds(5))
   {
+    RCLCPP_INFO(this->get_logger(), "Initializing Image combiner node");
+
     rgb_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
         "/camera/color/image_raw", 1,
         std::bind(&ImageCombiner::rgb_callback, this, std::placeholders::_1));
@@ -22,6 +27,8 @@ public:
   }
 
 private:
+  std::chrono::steady_clock::time_point last_log_time_;
+  std::chrono::seconds log_interval_;
   void rgb_callback(const sensor_msgs::msg::Image::SharedPtr msg)
   {
     rgb_image_ = msg;
@@ -44,10 +51,14 @@ private:
     auto combined_msg = pd_flow_msgs::msg::CombinedImage();
     combined_msg.rgb_image = *rgb_image_;
     combined_msg.depth_image = *depth_image_;
- 
-    combined_pub_->publish(combined_msg);
-    RCLCPP_INFO(this->get_logger(), "Publishing combined Image");
 
+    combined_pub_->publish(combined_msg);
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_log_time_ >= log_interval_)
+    {
+      RCLCPP_INFO(this->get_logger(), "Publishing combined Images...");
+      last_log_time_ = now;
+    }
     // Reiniciar las variables a nullptr después de publicar para que no se publique varias veces el mismo par
     rgb_image_ = nullptr;
     depth_image_ = nullptr;

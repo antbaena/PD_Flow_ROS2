@@ -8,21 +8,19 @@
 #include <pd_flow_msgs/msg/flow_field.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-
+#include <chrono>
 using namespace std;
-
-const unsigned int rows = 480; // Ajustar según tu imagen
-const unsigned int cols = 640; // Ajustar según tu imagen
-bool initialized = false;
-int cont = 0;
 
 class PDFlowNode : public rclcpp::Node
 {
 public:
-    PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 480)
+    PDFlowNode() : Node("PD_flow_node"),
+                   pd_flow_(1, 30, 480),
+                   last_log_time_(std::chrono::steady_clock::now()),
+                   log_interval_(std::chrono::seconds(5))
     {
-        cout << "Initializing PD_flow" << endl;
 
+        RCLCPP_INFO(this->get_logger(), "Initializing PD_flow");
         // pd_flow_.initializePDFlow();
         subscription_ = this->create_subscription<pd_flow_msgs::msg::CombinedImage>(
             "/combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
@@ -34,6 +32,11 @@ public:
     }
 
 private:
+    bool is_initialized = false;
+    const unsigned int rows = 480; // Ajustar según tu imagen
+    const unsigned int cols = 640; // Ajustar según tu imagen
+    std::chrono::steady_clock::time_point last_log_time_;
+    std::chrono::seconds log_interval_;
     void topic_callback(const pd_flow_msgs::msg::CombinedImage::SharedPtr msg)
     {
         try
@@ -62,29 +65,32 @@ private:
 
     void process_images()
     {
-        if (cont == 0)
+
+        if (!is_initialized)
         {
-            RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
+            RCLCPP_INFO(this->get_logger(), "Iniciando el flujo óptico: capturando 2 imágenes iniciales...");
             pd_flow_.initializePDFlow();
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
+            is_initialized = true;
         }
         else
         {
-            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
-            // Pasar las imágenes a PD_flow
+            // Procesar imágenes y calcular el flujo óptico
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
-            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
-            // Publicar los resultados
-            pd_flow_.updateScene();
-            // publish_point_cloud();
-            // publish_motion_field();
+            // Publicar el campo de flujo
             publish_flow_field();
+            auto now = std::chrono::steady_clock::now();
+            if (now - last_log_time_ >= log_interval_)
+            {
+                RCLCPP_INFO(this->get_logger(), "Publishing flow field...");
+                last_log_time_ = now;
+            }
         }
-        cont++;
+
         // Reiniciar las imágenes después de procesarlas
         rgb_image_ = cv::Mat();
         depth_image_ = cv::Mat();
@@ -162,16 +168,15 @@ private:
         {
             msg.image = *initial_combined_image;
         }
-    
-        std::cout << "Publicando flujo óptico..." << std::endl;
         flow_pub_->publish(msg);
 
-        // Crear imagen OpenCV del flujo óptico
-        cv::Mat flow_image = createImage();
+        // Mostrar imagen con OpenCV -- SOLO PARA DEBUG //
 
-        // Mostrar imagen con OpenCV
-        cv::imshow("Optical Flow", flow_image);
-        cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
+        // Crear imagen OpenCV del flujo óptico
+        // cv::Mat flow_image = createImage();
+
+        // cv::imshow("Optical Flow", flow_image);
+        // cv::waitKey(1);
     }
 
     //     void publish_flow_field()
