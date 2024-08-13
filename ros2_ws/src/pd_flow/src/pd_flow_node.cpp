@@ -8,19 +8,21 @@
 #include <pd_flow_msgs/msg/flow_field.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <chrono>
+
 using namespace std;
+
+const unsigned int rows = 480; // Ajustar según tu imagen
+const unsigned int cols = 640; // Ajustar según tu imagen
+bool initialized = false;
+int cont = 0;
 
 class PDFlowNode : public rclcpp::Node
 {
 public:
-    PDFlowNode() : Node("PD_flow_node"),
-                   pd_flow_(1, 30, 480),
-                   last_log_time_(std::chrono::steady_clock::now()),
-                   log_interval_(std::chrono::seconds(5))
+    PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 480)
     {
+        cout << "Initializing PD_flow" << endl;
 
-        RCLCPP_INFO(this->get_logger(), "Initializing PD_flow");
         // pd_flow_.initializePDFlow();
         subscription_ = this->create_subscription<pd_flow_msgs::msg::CombinedImage>(
             "/combined_image", 10, std::bind(&PDFlowNode::topic_callback, this, std::placeholders::_1));
@@ -28,15 +30,10 @@ public:
         point_cloud_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("point_cloud", 10);
         vector_field_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("vector_field", 10);
 
-        flow_pub_ = this->create_publisher<pd_flow_msgs::msg::FlowField>("flow_field", 10);
+        flow_pub_ = this->create_publisher<pd_flow_msgs::msg::FlowField>("flow_field", 1000);
     }
 
 private:
-    bool is_initialized = false;
-    const unsigned int rows = 480; // Ajustar según tu imagen
-    const unsigned int cols = 640; // Ajustar según tu imagen
-    std::chrono::steady_clock::time_point last_log_time_;
-    std::chrono::seconds log_interval_;
     void topic_callback(const pd_flow_msgs::msg::CombinedImage::SharedPtr msg)
     {
         try
@@ -65,33 +62,29 @@ private:
 
     void process_images()
     {
-
-        if (!is_initialized)
+        if (cont == 0)
         {
-            RCLCPP_INFO(this->get_logger(), "Iniciando el flujo óptico: capturando 2 imágenes iniciales...");
+            RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
             pd_flow_.initializePDFlow();
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
-            is_initialized = true;
         }
         else
         {
-            // Procesar imágenes y calcular el flujo óptico
+            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
+            // Pasar las imágenes a PD_flow
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
+            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
-            // Publicar el campo de flujo
+            // Publicar los resultados
             pd_flow_.updateScene();
+            // publish_point_cloud();
+            // publish_motion_field();
             publish_flow_field();
-            auto now = std::chrono::steady_clock::now();
-            if (now - last_log_time_ >= log_interval_)
-            {
-                RCLCPP_INFO(this->get_logger(), "Publishing flow field...");
-                last_log_time_ = now;
-            }
         }
-
+        cont++;
         // Reiniciar las imágenes después de procesarlas
         rgb_image_ = cv::Mat();
         depth_image_ = cv::Mat();
@@ -157,7 +150,7 @@ private:
         vector_field_publisher_->publish(marker_array);
     }
 
-    void publish_flow_field()
+    void publish_flow_field_2()
     {
 
         pd_flow_msgs::msg::FlowField msg = pd_flow_.convertToFlowFieldMsg();
@@ -180,66 +173,62 @@ private:
         // cv::waitKey(1);
     }
 
-    //     void publish_flow_field()
-    // {
-    //     std::vector<cv::Point3f> points;
-    //     std::vector<cv::Point3f> vectors;
+    void publish_flow_field()
+    {
+        // std::vector<cv::Point3f> points;
+        // std::vector<cv::Point3f> vectors;
 
-    //     pd_flow_.processPointCloud(points, vectors);
+        // pd_flow_.processPointCloud(points, vectors);
 
-    //     auto msg = pd_flow_msgs::msg::FlowField();
-    //     msg.header.stamp = this->get_clock()->now();
-    //     msg.header.frame_id = "camera_frame";
+        auto msg = pd_flow_msgs::msg::FlowField();
+        msg.header.stamp = this->get_clock()->now();
+        msg.header.frame_id = "camera_frame";
 
-    //     // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
-    //     if (initial_combined_image)
-    //     {
-    //         msg.image = *initial_combined_image;
-    //     }
+        // Necesitamos desreferenciar el puntero para obtener el objeto subyacente
+        if (initial_combined_image)
+        {
+            msg.image = *initial_combined_image;
+        }
 
-    //     // Aplanar las matrices de movimiento y copiar los datos
-    //     size_t num_elements = pd_flow_.dx[0].size();
-    //     msg.dx.resize(num_elements);
-    //     msg.dy.resize(num_elements);
-    //     msg.dz.resize(num_elements);
+        // Aplanar las matrices de movimiento y copiar los datos
+        size_t num_elements = pd_flow_.dx[0].size();
+        msg.dx.resize(num_elements);
+        msg.dy.resize(num_elements);
+        msg.dz.resize(num_elements);
 
-    //     // Variables para la suma total de dx, dy, dz
-    //     float sum_dx = 0.0f;
-    //     float sum_dy = 0.0f;
-    //     float sum_dz = 0.0f;
+        // Variables para la suma total de dx, dy, dz
+        float sum_dx = 0.0f;
+        float sum_dy = 0.0f;
+        float sum_dz = 0.0f;
 
-    //     for (size_t i = 0; i < num_elements; ++i)
-    //     {
-    //         msg.dx[i] = pd_flow_.dx[0](i);
-    //         msg.dy[i] = pd_flow_.dy[0](i);
-    //         msg.dz[i] = pd_flow_.dz[0](i);
+        for (size_t i = 0; i < num_elements; ++i)
+        {
+            msg.dx[i] = pd_flow_.dx[0](i);
+            msg.dy[i] = pd_flow_.dy[0](i);
+            msg.dz[i] = pd_flow_.dz[0](i);
 
-    //         // Acumulando la suma de dx, dy, dz
-    //         sum_dx += msg.dx[i];
-    //         sum_dy += msg.dy[i];
-    //         sum_dz += msg.dz[i];
-    //     }
+            // Acumulando la suma de dx, dy, dz
+            sum_dx += msg.dx[i];
+            sum_dy += msg.dy[i];
+            sum_dz += msg.dz[i];
+        }
 
-    //     // Determinar si todos los vectores son nulos
-    //     bool all_zero = (sum_dx == 0.0f && sum_dy == 0.0f && sum_dz == 0.0f);
+        // Determinar si todos los vectores son nulos
+        bool all_zero = (sum_dx == 0.0f && sum_dy == 0.0f && sum_dz == 0.0f);
 
-    //     std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos"
-    //               << (all_zero ? " - Todos los vectores son 0" : " - Vectores no nulos") << std::endl;
+        std::cout << "Publicando flujo óptico datos: " << msg.dx.size() << " elementos - "
+                  << (all_zero ? "Todos los vectores son 0" : "Vectores no nulos") << std::endl;
 
-    //     pd_flow_msgs::msg::FlowField  msg = pd_flow_.convertToMotionFieldMsg();
+        flow_pub_->publish(msg);
 
-    //     msg.header.stamp = this->get_clock()->now();
-    //     msg.header.frame_id = "camera_frame";
-    //     std::cout << "Publicando flujo óptico..."<< std::endl;
-    //     flow_pub_->publish(msg);
+        // Crear imagen OpenCV del flujo óptico
+        // cv::Mat flow_image = createImage();
 
-    //     // Crear imagen OpenCV del flujo óptico
-    //     cv::Mat flow_image = createImage();
+        // Mostrar imagen con OpenCV
+        // cv::imshow("Optical Flow", flow_image);
+        // cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
+    }
 
-    //     // Mostrar imagen con OpenCV
-    //     cv::imshow("Optical Flow", flow_image);
-    //     cv::waitKey(1); // Esperar un milisegundo para que se actualice la ventana
-    // }
     cv::Mat createImage() const
     {
         // Crear imagen RGB (una color por dirección)

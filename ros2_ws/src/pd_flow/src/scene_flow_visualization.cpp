@@ -27,8 +27,8 @@
 PD_flow::PD_flow(unsigned int cam_mode_config, unsigned int fps_config, unsigned int rows_config)
 {
 
-    rows = rows_config; // Maximum size of the coarse-to-fine scheme - Default 240 (QVGA)
-    cols = rows * 320 / 240;
+    rows = 480;                 // rows_config; // Maximum size of the coarse-to-fine scheme - Default 240 (QVGA)
+    cols = 640;                 // rows * 320 / 240;
     cam_mode = cam_mode_config; // (1 - 640 x 480, 2 - 320 x 240), Default - 1
     ctf_levels = round(log2(rows / 15)) + 1;
     fovh = M_PI * 62.5f / 180.f;
@@ -295,18 +295,28 @@ void PD_flow::updateScene()
         {
             // Obtener la profundidad y los desplazamientos de cada punto
             float depth_value = depth[repr_level](v, u);
-            if (depth_value > 0.1f)
+            if (depth_value > 0.0f)
             {
                 // Escalar los valores de desplazamiento para visualizarlos mejor
                 float dx_scaled = dx[repr_level](v, u);
                 float dy_scaled = dy[repr_level](v, u);
 
+                // Calcular el módulo del vector de desplazamiento
+                float displacement_magnitude = sqrt(dx_scaled * dx_scaled + dy_scaled * dy_scaled);
+
+                // Normalizar el valor de desplazamiento para el rango de color (0 a 255)
+                float max_displacement = 50.0f; // Ajusta este valor según la escala esperada de desplazamiento
+                float normalized_magnitude = std::min(displacement_magnitude / max_displacement, 1.0f);
+
+                // Calcular el color basado en la magnitud del desplazamiento (azul para pequeño, rojo para grande)
+                cv::Scalar color(255 * (1 - normalized_magnitude), 0, 255 * (normalized_magnitude));
+
                 // Dibujar la línea que representa el vector de movimiento
                 cv::Point2f start_point(u, v);
                 cv::Point2f end_point(u + dx_scaled, v + dy_scaled);
 
-                // Dibujar el vector en la imagen (usar color azul)
-                cv::arrowedLine(motion_field, start_point, end_point, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+                // Dibujar el vector en la imagen
+                cv::arrowedLine(motion_field, start_point, end_point, color, 1, cv::LINE_AA);
 
                 // Convertir valores de color y profundidad a formatos adecuados para visualización
             }
