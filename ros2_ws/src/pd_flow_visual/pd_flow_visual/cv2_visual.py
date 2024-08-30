@@ -5,6 +5,78 @@ from sensor_msgs.msg import Image
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+class Visor3D:
+    def __init__(self, ancho, largo, width=8, height=6):
+        """
+        Inicializa el visor 3D con una cuadrícula base.
+        
+        Parámetros:
+            ancho (int): Número de columnas en la cuadrícula.
+            largo (int): Número de filas en la cuadrícula.
+            width (int, optional): Ancho de la figura en pulgadas. Por defecto es 8.
+            height (int, optional): Alto de la figura en pulgadas. Por defecto es 6.
+        """
+        self.ancho = ancho
+        self.largo = largo
+
+        # Crear la figura y los ejes 3D
+        self.fig = plt.figure(figsize=(width, height))
+        self.ax = self.fig.add_subplot(111, projection='3d')
+
+        # Generar las posiciones base para la cuadrícula
+        x0, y0 = np.meshgrid(np.arange(ancho), np.arange(largo))
+        self.x0 = x0.flatten()
+        self.y0 = y0.flatten()
+        self.z0 = np.zeros_like(self.x0)  # El plano base es z=0
+
+        # Configurar los límites de los ejes
+        self.ax.set_xlim([0, ancho])
+        self.ax.set_ylim([0, largo])
+        self.ax.set_zlim([0, 1])  # Se actualizará dinámicamente según los datos
+
+        # Configurar las etiquetas de los ejes
+        self.ax.set_xlabel('Eje X')
+        self.ax.set_ylabel('Eje Y')
+        self.ax.set_zlabel('Eje Z')
+
+        # Configurar el título del gráfico
+        self.ax.set_title('Visualización 3D de Vectores desde una Cuadrícula (Flechas)')
+        
+        # Mostrar la cuadrícula
+        self.ax.grid(True)
+
+        # Inicializar el contenedor de flechas
+        self.quiver = None
+
+    def actualizar(self, dx, dy, dz):
+        """
+        Actualiza la visualización 3D con nuevos vectores.
+        
+        Parámetros:
+            dx (list or array): Componentes X de los vectores.
+            dy (list or array): Componentes Y de los vectores.
+            dz (list or array): Componentes Z de los vectores.
+        """
+        # Verificar que los vectores tengan la longitud correcta
+        if len(dx) != self.ancho * self.largo or len(dy) != self.ancho * self.largo or len(dz) != self.ancho * self.largo:
+            raise ValueError("Los vectores dx, dy y dz deben tener una longitud igual a ancho * largo.")
+        
+        # Si ya existen flechas dibujadas, eliminarlas antes de actualizar
+        if self.quiver:
+            self.quiver.remove()
+        
+        # Dibujar nuevas flechas
+        self.quiver = self.ax.quiver(self.x0, self.y0, self.z0, dx, dy, dz, color='b', arrow_length_ratio=0.1)
+
+        # Actualizar el límite del eje Z si es necesario
+        self.ax.set_zlim([0, max(self.z0 + dz)])
+
+        # Redibujar la figura
+        plt.draw()
+        plt.pause(0.001)
 
 class CV2Visual(Node):
     def __init__(self):
@@ -12,68 +84,14 @@ class CV2Visual(Node):
         self.subscription = self.create_subscription(FlowField, 'flow_field', self.listener_callback, 10)
         self.image_shape = (480, 640)  # Ajustar según las dimensiones reales de tu imagen
         self.bridge = CvBridge()
+        self.visor = Visor3D(self.image_shape[1], self.image_shape[0], width=10, height=8)
         self.get_logger().info("CV2 Visual inicializado correctamente")
 
-    def listener_callback(self, msg, scale_x = 10, scale_y = 1):
+    def listener_callback(self, msg):
         dx = np.array(msg.dx)
         dy = np.array(msg.dy)
         dz = np.array(msg.dz)
-
-        
-    
-        num_elements = self.image_shape[0] * self.image_shape[1]
-        num_elements = 409500
-        # num_elements = 307200
-        # len(dx) = 409500
-        # if len(dx) != num_elements or len(dy) != num_elements or len(dz) != num_elements:
-        #     self.get_logger().error(f"El tamaño de los datos no coincide con las dimensiones esperadas: {self.image_shape}")
-        #     return
-        
-        magnitudes = np.sqrt(dx**2 + dy**2 + dz**2)
-        max_magnitude = np.max(magnitudes)
-        normalized_magnitudes = magnitudes / max_magnitude if max_magnitude > 0 else magnitudes
-
-        color_map = np.zeros((len(dx), 3), dtype=np.uint8)
-        color_map[:, 0] = (normalized_magnitudes * 255).astype(np.uint8)  # Blue channel
-        color_map[:, 2] = (255 - normalized_magnitudes * 255).astype(np.uint8)  # Red channel
-
-        # COmo el image_shape está mal esto de aqui se ve doble
-        image = np.zeros((self.image_shape[0], self.image_shape[1], 3), dtype=np.uint8)
-        
-        
-        for i in range(num_elements):
-            y = (i // self.image_shape[1])
-            x = (i % self.image_shape[1])
-            start_point = (x, y)
-            end_point = (x + int(scale_x * dx[i]), y + int(scale_y * dy[i]))
-            color = (int(color_map[i, 2]), 0, int(color_map[i, 0]))
-            cv2.arrowedLine(image, start_point, end_point, color, 1)
-
-       
-        
-        # Mostrar el Flow Field
-        # self.get_logger().info(f"Mostrando flujo con CV2. Suma de los vectores: ({sum(dx)}, {sum(dy)}, {sum(dz)})")
-        cv2.imshow('CV2 Flow Field Visualization', image)
-        cv2.waitKey(1)
-
-    def convied_image_visualizer(self, msg):
-         # Convertir los mensajes a imágenes OpenCV
-        rgb_image = self.bridge.imgmsg_to_cv2(msg.image.rgb_image, desired_encoding='bgr8')
-        depth_image = self.bridge.imgmsg_to_cv2(msg.image.depth_image, desired_encoding='16UC1')
-
-        # Normalizar la imagen de profundidad a un rango de 0 a 255 y convertir a tipo np.uint8
-        depth_image_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX)
-        depth_image_uint8 = np.uint8(depth_image_normalized)
-
-        # Convertir la imagen de profundidad a un formato RGB
-        depth_image_rgb = cv2.cvtColor(depth_image_uint8, cv2.COLOR_GRAY2BGR)
-
-        # Combinar las imágenes RGB y Depth
-        combined_image = np.hstack((rgb_image, depth_image_rgb))
-
-        # Mostrar la imagen combinada RGBD
-        cv2.imshow('RGBD Image', combined_image)
-
+        self.visor.actualizar(dx, dy, dz)
 
 def main(args=None):
     rclpy.init(args=args)
