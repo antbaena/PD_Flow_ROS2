@@ -55,6 +55,11 @@ ament_target_dependencies(VectorFieldPublisher
 
 
 # Configuración de CUDA
+
+# pc no sancho del lab
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_75,code=sm_75")
+
+# edge
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O3 -gencode arch=compute_61,code=sm_61")
 
 cuda_add_executable(pd_flow
@@ -62,6 +67,7 @@ cuda_add_executable(pd_flow
   src/scene_flow_visualization.cpp
   src/pdflow_cudalib.cu
 )
+
 
 set_target_properties(pd_flow PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 

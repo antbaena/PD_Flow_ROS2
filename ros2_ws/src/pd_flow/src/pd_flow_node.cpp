@@ -11,15 +11,18 @@
 
 using namespace std;
 
-const unsigned int rows = 480; // Ajustar según tu imagen
-const unsigned int cols = 640; // Ajustar según tu imagen
+const unsigned int rows = 480; // Ajustar
+const unsigned int fps = 30;
+const unsigned int cam_mode = 1;
+
+const unsigned int cols = 640; // Ajustar
 bool initialized = false;
 int cont = 0;
 
 class PDFlowNode : public rclcpp::Node
 {
 public:
-    PDFlowNode() : Node("PD_flow_node"), pd_flow_(1, 30, 480)
+    PDFlowNode() : Node("PD_flow_node"), pd_flow_(cam_mode, fps, rows)
     {
         cout << "Initializing PD_flow" << endl;
 
@@ -62,21 +65,20 @@ private:
 
     void process_images()
     {
-        if (cont == 0)
+        if (!initialized)
         {
             RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
             pd_flow_.initializePDFlow();
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
+            initialized = true;
         }
         else
         {
-            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
             // Pasar las imágenes a PD_flow
             pd_flow_.process_frame(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
-            // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
 
             // Publicar los resultados
             pd_flow_.updateScene();
@@ -84,7 +86,6 @@ private:
             // publish_motion_field();
             publish_flow_field();
         }
-        cont++;
         // Reiniciar las imágenes después de procesarlas
         rgb_image_ = cv::Mat();
         depth_image_ = cv::Mat();
