@@ -285,10 +285,15 @@ void PD_flow::updateScene()
 {
     // Crear imágenes para mostrar el campo de movimiento, color y profundidad
     cv::Mat motion_field = cv::Mat::zeros(rows, cols, CV_8UC3);
+    //cga
+    cv::Mat speed_field = cv::Mat::zeros(rows, cols, CV_8UC3);
+    //end_cga
+
     cv::Mat color_image(rows, cols, CV_8UC3);
     cv::Mat depth_image(rows, cols, CV_8UC1);
 
     const unsigned int repr_level = round(log2(colour_wf.cols() / cols));
+    std::cout << "El repr_level azul: " << repr_level << " el colour_wf.cols(): " << colour_wf.cols() << std::endl;
     for (unsigned int v = 0; v < rows; v++)
     {
         for (unsigned int u = 0; u < cols; u++)
@@ -318,6 +323,11 @@ void PD_flow::updateScene()
                 // Dibujar el vector en la imagen
                 cv::arrowedLine(motion_field, start_point, end_point, color, 1, cv::LINE_AA);
 
+                //cga
+                cv::Point2f center(u,v);              
+                cv::circle(speed_field,center,1,255*displacement_magnitude,-1);
+                //end_cga
+
                 // Convertir valores de color y profundidad a formatos adecuados para visualización
             }
             color_image.at<cv::Vec3b>(v, u) = cv::Vec3b(colour_wf(v, u), colour_wf(v, u), colour_wf(v, u));
@@ -325,6 +335,10 @@ void PD_flow::updateScene()
             depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
         }
     }
+    //cga
+    // Mostrar la imagen del velocidades
+    cv::imshow("Speed Field", speed_field);
+    //end_cga
 
     // Mostrar la imagen del campo de movimiento
     cv::imshow("Motion Field", motion_field);

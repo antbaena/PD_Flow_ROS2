@@ -66,14 +66,14 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Iniciando el flujo flujo óptico cogiendo 2 imagenes iniciales...");
             pd_flow_.initializePDFlow();
-            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.process_frame2(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
         }
         else
         {
             // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
             // Pasar las imágenes a PD_flow
-            pd_flow_.process_frame(rgb_image_, depth_image_);
+            pd_flow_.process_frame2(rgb_image_, depth_image_);
             pd_flow_.createImagePyramidGPU();
             pd_flow_.solveSceneFlowGPU();
             // RCLCPP_INFO(this->get_logger(), "Calculando flujo óptico...");
@@ -201,16 +201,26 @@ private:
         float sum_dy = 0.0f;
         float sum_dz = 0.0f;
 
-        for (size_t i = 0; i < num_elements; ++i)
-        {
-            msg.dx[i] = pd_flow_.dx[0](i);
-            msg.dy[i] = pd_flow_.dy[0](i);
-            msg.dz[i] = pd_flow_.dz[0](i);
+        const unsigned int repr_level = round(log2(pd_flow_.colour_wf.cols() / cols));
+        
+        std::cout << "El repr level de cuando se publica: " << repr_level << std::endl;
 
-            // Acumulando la suma de dx, dy, dz
-            sum_dx += msg.dx[i];
-            sum_dy += msg.dy[i];
-            sum_dz += msg.dz[i];
+        long i = 0;
+        for (unsigned int v = 0; v < rows; v++)
+        {
+            for (unsigned int u = 0; u < cols; u++)
+            {
+                msg.dx[i] = pd_flow_.dx[repr_level](v, u);
+                msg.dy[i] = pd_flow_.dy[repr_level](v, u);
+                msg.dz[i] = pd_flow_.dz[repr_level](v, u);
+
+                // Acumulando la suma de dx, dy, dz
+                sum_dx += msg.dx[i];
+                sum_dy += msg.dy[i];
+                sum_dz += msg.dz[i];
+
+                i++;
+            }
         }
 
         // Determinar si todos los vectores son nulos

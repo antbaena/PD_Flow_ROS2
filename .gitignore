@@ -41,3 +41,4 @@ build/
 #Visual Studio files
 /.vscode
 ros2_ws/rosbag2_2024_07_11-19_08_55/*
+ros2_ws/rosbag2_2024_09_12-14_54_47/rosbag2_2024_09_12-14_54_47_0.db3

@@ -26,7 +26,7 @@ class CV2Visual(Node):
         depth_image = self.bridge.imgmsg_to_cv2(msg.image.depth_image, desired_encoding='16UC1')
 
         # Obtener las dimensiones de la imagen
-        image_height, image_width = rgb_image.shape[:2]
+        image_width, image_height = rgb_image.shape[:2]
 
         # Normalizar la imagen de profundidad a un rango de 0 a 255 y convertir a tipo np.uint8
         depth_image_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX)
@@ -44,22 +44,28 @@ class CV2Visual(Node):
             self.get_logger().error(f"El tamaño de los datos no coincide con las dimensiones esperadas: {image_height}x{image_width}")
             return
 
+
         magnitudes = np.sqrt(dx**2 + dy**2 + dz**2)
         max_magnitude = np.max(magnitudes)
         normalized_magnitudes = magnitudes / max_magnitude if max_magnitude > 0 else magnitudes
 
         color_map = np.zeros((len(dx), 3), dtype=np.uint8)
-        color_map[:, 0] = (normalized_magnitudes * 255).astype(np.uint8)  # Canal azul
-        color_map[:, 2] = (255 - normalized_magnitudes * 255).astype(np.uint8)  # Canal rojo
+        color_map[:, 2] = (normalized_magnitudes * 255).astype(np.uint8)  # Canal azul
+        color_map[:, 0] = (255 - normalized_magnitudes * 255).astype(np.uint8)  # Canal rojo
+        
+        #color_img=normalized_magnitudes.reshape((image_height,image_width,1))
+        color_img=color_map.reshape((image_width,image_height,3))
+        cv2.imshow('Color MAP',color_img)
+        cv2.waitKey(1)
 
         # Mostrar la imagen combinada RGBD
         cv2.imshow('RGBD Image', combined_image)
 
         self.display_color_from_speed(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
-        self.display_rgb_point_cloud(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
+        #self.display_rgb_point_cloud(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
         #self.display_flow_field(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
         #self.display_flow_field_old(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
-        self.display_vectors_with_color_map(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
+        #self.display_vectors_with_color_map(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
         #self.display_vectors_with_pixel_color(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
         #self.display_vectors_with_color_map(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
 
@@ -219,15 +225,18 @@ class CV2Visual(Node):
         plt.show()
 
     def display_color_from_speed(self, image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map):
-        image = np.zeros((image_height, image_width, 3), dtype=np.uint8)
-        for v in range(image_height):  # rows
-            for u in range(image_width):  # columns
-                i = v * image_width + u
+        image = np.zeros((image_width, image_height, 3), dtype=np.uint8)
+        i = 0
+        for v in range(image_width):  # rows
+            for u in range(image_height):  # columns                
                 z = depth_image[v, u] * 0.02  # Aplicar escala
                 
                 if z > 0:
-                    color = (int(color_map[i, 2]), 0, int(color_map[i, 0]))
+                    color = (int(color_map[i, 0]), 0, int(color_map[i, 2]))
                     cv2.circle(image, (u, v), 1, color, -1)  # Dibujar el punto
+                
+                i = i + 1
+                    
 
         cv2.imshow('Color from speed', image)
         cv2.waitKey(1)
