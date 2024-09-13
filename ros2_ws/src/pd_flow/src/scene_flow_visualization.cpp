@@ -206,7 +206,7 @@ void PD_flow::solveSceneFlowGPU()
     }
 }
 
-void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
+void PD_flow::process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image)
 {
     // Verifica que las imágenes no estén vacías
     if (rgb_image.empty() || depth_image.empty())
@@ -236,7 +236,7 @@ void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
     }
 }
 
-void PD_flow::process_frame2(cv::Mat &rgb_image, cv::Mat &depth_image)
+void PD_flow::process_frame(cv::Mat &rgb_image, cv::Mat &depth_image)
 {
 
     // Convert the RGB image to grayscale
@@ -293,7 +293,6 @@ void PD_flow::updateScene()
     cv::Mat depth_image(rows, cols, CV_8UC1);
 
     const unsigned int repr_level = round(log2(colour_wf.cols() / cols));
-    std::cout << "El repr_level azul: " << repr_level << " el colour_wf.cols(): " << colour_wf.cols() << std::endl;
     for (unsigned int v = 0; v < rows; v++)
     {
         for (unsigned int u = 0; u < cols; u++)

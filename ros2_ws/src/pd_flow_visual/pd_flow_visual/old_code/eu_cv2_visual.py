@@ -54,12 +54,12 @@ class CV2Visual(Node):
         color_map[:, 0] = (255 - normalized_magnitudes * 255).astype(np.uint8)  # Canal rojo
         
         #color_img=normalized_magnitudes.reshape((image_height,image_width,1))
-        color_img=color_map.reshape((image_width,image_height,3))
-        cv2.imshow('Color MAP',color_img)
-        cv2.waitKey(1)
+        #color_img=color_map.reshape((image_width,image_height,3))
+        #cv2.imshow('Color MAP',color_img)
+        #cv2.waitKey(1)
 
         # Mostrar la imagen combinada RGBD
-        cv2.imshow('RGBD Image', combined_image)
+        #cv2.imshow('RGBD Image', combined_image)
 
         self.display_color_from_speed(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
         #self.display_rgb_point_cloud(image_height, image_width, rgb_image, depth_image, dx, dy, dz, color_map)
@@ -230,11 +230,9 @@ class CV2Visual(Node):
         for v in range(image_width):  # rows
             for u in range(image_height):  # columns                
                 z = depth_image[v, u] * 0.02  # Aplicar escala
-                
                 if z > 0:
                     color = (int(color_map[i, 0]), 0, int(color_map[i, 2]))
                     cv2.circle(image, (u, v), 1, color, -1)  # Dibujar el punto
-                
                 i = i + 1
                     
 

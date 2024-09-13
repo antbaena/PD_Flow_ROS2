@@ -23,7 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'eu_cv2_visual = pd_flow_visual.eu_cv2_visual:main',
+            'display_color_from_speed = pd_flow_visual.display_color_from_speed:main',
+            'display_combined_image = pd_flow_visual.display_combined_image:main',
             'cv2_visual = pd_flow_visual.cv2_visual:main',
             'flow_field_publisher = pd_flow_visual.flow_field_publisher:main'
         ],
