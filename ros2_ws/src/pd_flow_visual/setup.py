@@ -23,9 +23,11 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'display_color_from_speed = pd_flow_visual.display_color_from_speed:main',
-            'display_combined_image = pd_flow_visual.display_combined_image:main',
-            'cv2_visual = pd_flow_visual.cv2_visual:main',
+            'cv2_color_from_speed = pd_flow_visual.cv2_color_from_speed:main',
+            'vispy_color_from_speed = pd_flow_visual.vispy_color_from_speed:main',
+            'cv2_color_superposition = pd_flow_visual.cv2_color_superposition:main',
+            'cv2_rgb_point_cloud = pd_flow_visual.cv2_rgb_point_cloud:main',
+            'combined_image = pd_flow_visual.combined_image:main',
             'flow_field_publisher = pd_flow_visual.flow_field_publisher:main'
         ],
     },

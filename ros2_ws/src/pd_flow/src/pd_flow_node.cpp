@@ -103,7 +103,7 @@ private:
             publish_flow_field();
 
             // DEBUG -- Only for visualization --
-            //  pd_flow_.updateScene();
+            // pd_flow_.updateScene();
             //  publish_point_cloud();
             //  publish_motion_field();
         }

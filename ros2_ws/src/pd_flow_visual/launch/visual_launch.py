@@ -6,17 +6,21 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         Node(  
-                package="pd_flow_visual",
-                executable="display_combined_image",
-                name="combined_image",
-                output="screen",
-               
-            ),
+            package="pd_flow_visual",
+            executable="combined_image",
+            name="combined_image",
+            output="screen",
+        ),
         Node(  
-                package="pd_flow_visual",
-                executable="display_color_from_speed",
-                name="color_from_speed",
-                output="screen",
-                
-            ),
+            package="pd_flow_visual",
+            executable="cv2_color_superposition",
+            name="color_superposition",
+            output="screen",
+        ),
+        Node(  
+            package="pd_flow_visual",
+            executable="cv2_color_from_speed",
+            name="color_from_speed",
+            output="screen",
+        ),
     ])

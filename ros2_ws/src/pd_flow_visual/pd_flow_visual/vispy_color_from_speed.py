@@ -1,11 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from pd_flow_msgs.msg import FlowField
-from sensor_msgs.msg import Image
-import cv2
+
 import numpy as np
 from cv_bridge import CvBridge
-
+from vispy import app, scene
+from vispy.color import Colormap
 
 class ColorFromSpeed(Node):
     def __init__(self):
@@ -26,8 +26,15 @@ class ColorFromSpeed(Node):
         self.color_map = None
         self.depth_image = None
 
-        # Timer para controlar la frecuencia de visualización
-        self.create_timer(0.3, self.display_image)  # Aproximadamente 30 FPS
+        # Crear una ventana de VisPy
+        self.canvas = scene.SceneCanvas(keys='interactive', show=True)
+        self.view = self.canvas.central_widget.add_view()
+
+        # Crear una imagen usando VisPy
+        self.cmap = Colormap(['r', 'b'])
+        self.image = scene.visuals.Image(np.zeros((1, 1, 3)), cmap=self.cmap, parent=self.view.scene)
+
+        print("Vispy Color From Speed inicializado correctamente")
 
     def listener_callback(self, msg):
         # Convertir los datos de velocidad a arrays de NumPy
@@ -59,35 +66,37 @@ class ColorFromSpeed(Node):
         self.color_map = color_map
         self.depth_image = depth_image
 
-    def display_image(self):
-        # Mostrar la imagen solo si los datos están disponibles
+        self.update_image()
+
+    def update_image(self):
         if self.color_map is not None and self.depth_image is not None:
-            # Crear una imagen vacía
             image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
+            z_scaled = (self.depth_image * 0.02).flatten()
+            valid = z_scaled > 0
 
-            # Usar indexación avanzada para aplicar el color de manera vectorizada
-            z_scaled = (self.depth_image * 0.02).flatten()  # Aplicar escala de profundidad
-            valid = z_scaled > 0  # Filtrar valores válidos de profundidad
-
-            # Aplicar colores solo a los píxeles válidos
             positions = np.column_stack(np.where(self.depth_image > 0))
             image[positions[:, 0], positions[:, 1]] = self.color_map[valid]
 
-            # Mostrar la imagen
-            cv2.imshow('Color from speed', image)
-            cv2.waitKey(1)  # Permitir que OpenCV procese eventos de ventana correctamente
+            # Actualizar la imagen en VisPy
+            self.image.set_data(image)
+
+    def run_vispy(self):
+        while rclpy.ok():
+            # Procesar eventos de VisPy
+            app.process_events()
+            # Ejecutar el ciclo de ROS
+            rclpy.spin_once(self, timeout_sec=0.1)
 
 def main(args=None):
     rclpy.init(args=args)
     color_from_speed_node = ColorFromSpeed()
-  
-    # Ejecutar el nodo hasta que se cierre manualmente
-    rclpy.spin(color_from_speed_node)
+
+    # Ejecutar el nodo y VisPy en el mismo hilo
+    color_from_speed_node.run_vispy()
 
     # Destruir el nodo de manera segura
     color_from_speed_node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

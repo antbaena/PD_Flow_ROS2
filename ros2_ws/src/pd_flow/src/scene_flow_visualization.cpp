@@ -285,9 +285,9 @@ void PD_flow::updateScene()
 {
     // Crear imágenes para mostrar el campo de movimiento, color y profundidad
     cv::Mat motion_field = cv::Mat::zeros(rows, cols, CV_8UC3);
-    //cga
+    // cga
     cv::Mat speed_field = cv::Mat::zeros(rows, cols, CV_8UC3);
-    //end_cga
+    // end_cga
 
     cv::Mat color_image(rows, cols, CV_8UC3);
     cv::Mat depth_image(rows, cols, CV_8UC1);
@@ -320,12 +320,12 @@ void PD_flow::updateScene()
                 cv::Point2f end_point(u + dx_scaled, v + dy_scaled);
 
                 // Dibujar el vector en la imagen
-                cv::arrowedLine(motion_field, start_point, end_point, color, 1, cv::LINE_AA);
+                cv::circle(motion_field, start_point, 2, color, cv::FILLED, cv::LINE_AA);
 
-                //cga
-                cv::Point2f center(u,v);              
-                cv::circle(speed_field,center,1,255*displacement_magnitude,-1);
-                //end_cga
+                // cga
+                cv::Point2f center(u, v);
+                cv::circle(speed_field, center, 1, 255 * displacement_magnitude, -1);
+                // end_cga
 
                 // Convertir valores de color y profundidad a formatos adecuados para visualización
             }
@@ -334,19 +334,19 @@ void PD_flow::updateScene()
             depth_image.at<uint8_t>(v, u) = static_cast<uint8_t>(depth_value * 255); // Normalizar la profundidad para visualización
         }
     }
-    //cga
-    // Mostrar la imagen del velocidades
-    cv::imshow("Speed Field", speed_field);
-    //end_cga
+    // cga
+    //  Mostrar la imagen del velocidades
+    //  cv::imshow("Speed Field", speed_field);
+    // end_cga
 
     // Mostrar la imagen del campo de movimiento
     cv::imshow("Motion Field", motion_field);
 
     // Mostrar la imagen de color
-    cv::imshow("Color Image", color_image);
+    // cv::imshow("Color Image", color_image);
 
     // Mostrar la imagen de profundidad
-    cv::imshow("Depth Image", depth_image);
+    // cv::imshow("Depth Image", depth_image);
 
     cv::waitKey(1); // Espera breve para actualizar las ventanas
 }

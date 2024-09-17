@@ -24,7 +24,7 @@ class CombinedImage(Node):
         self.combined_image = None
 
         # Timer para controlar la frecuencia de visualización
-        self.create_timer(0.3, self.display_image)  # Aproximadamente 30 FPS
+        self.create_timer(0.01, self.display_image)  # Aproximadamente 30 FPS
 
     def listener_callback(self, msg):
         # Convertir los mensajes a imágenes OpenCV
